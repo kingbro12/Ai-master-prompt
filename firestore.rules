@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // --- User Rules ---
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isOwner(userId) && isVerified() && isValidUser(incoming());
+      allow update: if isOwner(userId) && isVerified() && isValidUser(incoming()) && (
+        // Prevent privilege escalation - don't allow changing uid or email
+        incoming().get('uid', '') == existing().get('uid', '') &&
+        incoming().get('email', '') == existing().get('email', '')
+      );
+
+      function isValidUser(data) {
+        return data.get('uid', '') == request.auth.uid 
+          && data.get('displayName', '') is string 
+          && data.get('displayName', '').size() <= 100
+          && (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() <= 2000))
+          && (data.get('email', null) == null || (data.email is string && data.email.size() <= 200))
+          && (data.get('isVendor', false) is bool)
+          && (data.get('vendorProfile', null) == null || (
+            data.vendorProfile is map 
+            && data.vendorProfile.get('location', '') is string
+            && data.vendorProfile.get('contact', '') is string
+          ));
+      }
+    }
+
+    // --- Photo Rules ---
+    match /photos/{photoId} {
+      allow read: if true;
+      allow create: if isVerified() && isValidPhoto(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isVerified() && isOwner(existing().userId) && (
+        // Partial update logic
+        incoming().diff(existing()).affectedKeys().hasAny(['category', 'masterPrompt', 'likesCount'])
+      ) && isValidPhoto(incoming());
+      allow delete: if isVerified() && isOwner(existing().userId);
+
+      function isValidPhoto(data) {
+        return data.get('userId', '') is string && data.get('userId', '').size() <= 128
+          && data.get('userName', '') is string && data.get('userName', '').size() <= 100
+          && data.get('category', '') in ['human-restoration', 'building-decoration', 'other']
+          && data.get('beforePhotoUrl', '') is string && data.get('beforePhotoUrl', '').size() <= 400000
+          && data.get('afterPhotoUrl', '') is string && data.get('afterPhotoUrl', '').size() <= 400000
+          && data.get('masterPrompt', '') is string && data.get('masterPrompt', '').size() <= 5000
+          && data.get('createdAt', request.time) is timestamp
+          && data.get('likesCount', 0) is int;
+      }
+    }
+
+    // --- Prompt Library Rules ---
+    match /prompts/{promptId} {
+      allow read: if true;
+      allow create: if isVerified() && isValidPrompt(incoming()) && incoming().userId == request.auth.uid;
+      allow update, delete: if isVerified() && isOwner(existing().userId);
+
+      function isValidPrompt(data) {
+        return data.get('userId', '') is string && data.get('userId', '').size() <= 128
+          && data.get('userName', '') is string && data.get('userName', '').size() <= 100
+          && data.get('title', '') is string && data.get('title', '').size() <= 200
+          && data.get('prompt', '') is string && data.get('prompt', '').size() <= 10000
+          && data.get('category', '') in ['Human', 'Architecture', 'Other']
+          && data.get('createdAt', request.time) is timestamp;
+      }
+    }
+  }
+}

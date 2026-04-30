@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with optional vendor details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string" },
+        "isVendor": { "type": "boolean" },
+        "vendorProfile": {
+          "type": "object",
+          "properties": {
+            "services": { "type": "array", "items": { "type": "string" } },
+            "location": { "type": "string" },
+            "contact": { "type": "string" },
+            "description": { "type": "string" }
+          }
+        }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "Photo": {
+      "title": "Photo",
+      "description": "A community gallery item with before/after photos and master prompt",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "category": { "type": "string", "enum": ["human-restoration", "building-decoration", "other"] },
+        "beforePhotoUrl": { "type": "string" },
+        "afterPhotoUrl": { "type": "string" },
+        "masterPrompt": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "likesCount": { "type": "number" }
+      },
+      "required": ["userId", "category", "beforePhotoUrl", "afterPhotoUrl", "masterPrompt", "createdAt"]
+    },
+    "Prompt": {
+      "title": "Prompt",
+      "description": "A library item for master prompts",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "title": { "type": "string" },
+        "prompt": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "prompt", "category"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/photos/{photoId}": {
+      "schema": "Photo",
+      "description": "Community gallery photos"
+    },
+    "/prompts/{promptId}": {
+      "schema": "Prompt",
+      "description": "Global prompt library"
+    }
+  }
+}

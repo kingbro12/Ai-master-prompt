@@ -1,0 +1,14 @@
+{
+  "name": "PromptVerse - AI Community Gallery",
+  "description": "A stylish platform for AI photo restoration and decoration. Explore before/after transformations, copy master prompts after ads, and connect with creative vendors.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "COMMUNITY_GALLERY",
+    "AI_PROMPT_LIBRARY",
+    "VENDOR_MARKETPLACE"
+  ]
+}
