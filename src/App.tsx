@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent, Fragment } from 'react';
 import { 
   Plus, 
   Search, 
@@ -18,7 +18,6 @@ import {
   Eye,
   ArrowRightLeft,
   LayoutGrid,
-  Maximize2,
   Heart,
   Share2,
   Filter
@@ -103,15 +102,18 @@ const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 1000): Pro
 };
 
 // --- Mock Ad Component ---
-const AdMock = ({ size = 'rect' }: { size?: 'rect' | 'banner' }) => (
+const AdMock = ({ size = 'rect' }: { size?: 'rect' | 'banner' | 'card' | 'row' }) => (
   <div className={cn(
     "bg-slate-900/40 border border-dashed border-slate-700 flex flex-col items-center justify-center p-4 rounded-2xl",
-    size === 'banner' ? "w-full h-32 my-8" : "w-full aspect-[4/3]"
+    size === 'banner' ? "w-full h-32 my-8" : 
+    size === 'card' ? "aspect-[4/5] w-full" :
+    size === 'row' ? "w-full min-h-[100px] sm:min-h-[80px]" :
+    "w-full aspect-[4/3]"
   )}>
-    <span className="text-[10px] font-mono text-slate-500 mb-2 italic uppercase tracking-tighter">Sponsored Content</span>
-    <div className="w-full h-full bg-slate-800/50 rounded-lg border border-slate-700 flex flex-col items-center justify-center">
+    <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-400 mb-2">Sponsored Content</span>
+    <div className="w-full h-full bg-slate-800/50 rounded-lg border border-slate-700 flex flex-col items-center justify-center p-2 text-center">
        <div className="text-[10px] text-slate-500 uppercase tracking-tighter">Google AdSense Placeholder</div>
-       <div className="w-12 h-1 bg-slate-700 mt-2 rounded"></div>
+       <div className="w-12 h-1 bg-slate-700 mt-2 rounded mx-auto"></div>
     </div>
   </div>
 );
@@ -121,20 +123,24 @@ const VideoAdModal = ({ isOpen, onClose, onComplete }: { isOpen: boolean, onClos
   const [timeLeft, setTimeLeft] = useState(10);
 
   useEffect(() => {
+    if (isOpen) {
+      setTimeLeft(10);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen && timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
-    } else if (isOpen && timeLeft === 0) {
-      onComplete();
     }
   }, [isOpen, timeLeft]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4">
-      <div className="max-w-xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-        <div className="relative aspect-video bg-black flex items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-4">
+      <div className="max-w-lg w-full bg-slate-900 rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="relative aspect-video bg-black flex items-center justify-center flex-shrink-0">
           <div className="flex flex-col items-center gap-4">
             <div className="w-16 h-16 rounded-full border-4 border-t-blue-500 border-white/10 animate-spin" />
             <p className="text-white font-medium text-lg">Watching Video Ad...</p>
@@ -146,11 +152,14 @@ const VideoAdModal = ({ isOpen, onClose, onComplete }: { isOpen: boolean, onClos
         <div className="p-6">
           <h3 className="text-xl font-bold text-white mb-2">Almost there!</h3>
           <p className="text-gray-400 text-sm mb-6">
-            Watch this short ad to reveal the Master Prompt or download in HD.
+            Continue to Auto-Copy & Open Gemini.
           </p>
           <button 
             disabled={timeLeft > 0}
-            onClick={onClose}
+            onClick={() => {
+              onComplete();
+              onClose();
+            }}
             className="w-full py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white text-black hover:bg-gray-200"
           >
             {timeLeft > 0 ? "Watch to continue" : "Continue"}
@@ -261,7 +270,7 @@ const PhotoCard = ({ photo, onAction, isLiked }: { photo: Photo, onAction: (p: P
             onClick={() => onAction(photo, 'prompt')}
             className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-all text-[10px] font-bold border border-indigo-500 shadow-lg shadow-indigo-500/10 group/btn"
           >
-            <Sparkles size={14} className="group-hover/btn:animate-pulse" /> Master Prompt
+            <Sparkles size={14} className="group-hover/btn:animate-pulse" /> Copy Master Prompt
           </button>
 
           <button 
@@ -312,12 +321,18 @@ export default function App() {
               email: u.email || '',
               isVendor: false
             };
-            await setDoc(doc(db, 'users', u.uid), newProfile);
-            setProfile(newProfile);
+            try {
+              await setDoc(doc(db, 'users', u.uid), newProfile);
+              setProfile(newProfile);
+            } catch (err) {
+              console.error("Failed to create profile (offline?)", err);
+              // Set local profile anyway so the app works in offline mode
+              setProfile(newProfile);
+            }
           }
         } catch (e) {
-          // If it's a permission error, it might be due to email verification
-          handleFirestoreError(e, OperationType.WRITE, userPath);
+          console.warn("Failed to fetch profile (offline?)", e);
+          // If we can't get it, we'll try again later or assume local state
         }
       } else {
         setProfile(null);
@@ -418,11 +433,22 @@ export default function App() {
           await navigator.share(shareData);
         } else {
           // Fallback to copy link
-          await copyToClipboard(window.location.href);
-          alert("Gallery link copied! Share it on your social media.");
+          const success = await copyToClipboard(window.location.href);
+          if (success) {
+            alert("Gallery link copied! Share it on your social media.");
+          }
         }
-      } catch (err) {
-        console.error('Share failed', err);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('Share canceled by user.');
+        } else {
+          console.error('Share failure:', err);
+          // Fallback to clipboard if share fails (sometimes happens in iframes)
+          const success = await copyToClipboard(window.location.href);
+          if (success) {
+             alert("Share failed, but link was copied to clipboard instead.");
+          }
+        }
       }
       return;
     }
@@ -432,27 +458,14 @@ export default function App() {
   };
 
   const onAdComplete = () => {
-    setShowAdModal(false);
     if (!pendingAction) return;
 
     if (pendingAction.type === 'prompt' && pendingAction.photo) {
-      copyToClipboard(pendingAction.photo.masterPrompt).then(success => {
-        if (success) {
-          alert("Master Prompt copied to clipboard! You can now use it on Gemini.");
-        } else {
-          alert("Could not copy automatically. Please copy the prompt manually from the details.");
-        }
-        window.open('https://gemini.google.com/', '_blank');
-      });
+      copyToClipboard(pendingAction.photo.masterPrompt);
+      window.open('https://gemini.google.com/', '_blank');
     } else if (pendingAction.type === 'libraryPrompt' && pendingAction.data) {
-       copyToClipboard(pendingAction.data).then(success => {
-         if (success) {
-           alert("Prompt copied! Redirecting to Gemini...");
-         } else {
-           alert("Could not copy automatically. Redirecting to Gemini...");
-         }
-         window.open('https://gemini.google.com/', '_blank');
-       });
+       copyToClipboard(pendingAction.data);
+       window.open('https://gemini.google.com/', '_blank');
     }
     setPendingAction(null);
   };
@@ -508,79 +521,51 @@ export default function App() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-16 pb-24 px-6 overflow-hidden">
+      <section className="relative pt-4 pb-6 px-6 overflow-hidden">
         <div className="max-w-7xl mx-auto grid grid-cols-12 gap-6 relative z-10">
           {/* Unified AI Mastery Hub */}
           <div className="col-span-12 bento-card p-1 items-stretch overflow-hidden bg-slate-900/50">
-            <div className="flex flex-col items-center justify-center min-h-[450px]">
+            <div className="flex flex-col items-center justify-center min-h-[300px]">
               {/* Branding Section - Now Centered & Expanded */}
-              <div className="w-full h-full p-10 md:p-20 bg-gradient-to-br from-indigo-600 to-indigo-800 flex flex-col items-center justify-center text-center relative overflow-hidden group">
+              <div className="w-full h-full p-8 md:p-12 bg-gradient-to-br from-indigo-600 to-indigo-800 flex flex-col items-center justify-center text-center relative overflow-hidden group">
                 <div className="relative z-10 max-w-2xl">
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white font-bold text-[10px] uppercase tracking-widest mb-6 border border-white/20"
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white font-bold text-[10px] uppercase tracking-widest mb-4 border border-white/20"
                   >
                     <Sparkles size={12} /> AI Vision Portal
                   </motion.div>
-                  <h2 className="text-4xl md:text-6xl font-black text-white leading-tight tracking-tighter mb-6">
-                    Master the <span className="text-indigo-200 underline decoration-indigo-300">Art</span> of Restoration
-                  </h2>
-                  <p className="text-indigo-100/80 text-base font-medium leading-relaxed mb-10">
-                    Step into the future of creative collaboration. Use Google Gemini to unlock master prompts and transform your vision into reality.
-                  </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full max-w-md">
                   <button 
                     onClick={() => setActiveTab('gallery')}
-                    className="flex-1 py-5 bg-white text-indigo-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 group/btn"
+                    className="flex-1 py-4 bg-white text-indigo-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 group/btn"
                   >
                     <ArrowRightLeft size={20} className="group-hover/btn:rotate-180 transition-transform duration-500" /> 
                     Explore Community Gallery
                   </button>
                   <button 
                     onClick={() => setActiveTab('prompts')}
-                    className="flex-1 py-5 bg-indigo-500/30 text-white rounded-2xl font-bold text-sm hover:bg-indigo-500/50 transition-all border border-white/20 active:scale-[0.98] flex items-center justify-center gap-3 backdrop-blur-md"
+                    className="flex-1 py-4 bg-white text-indigo-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 backdrop-blur-md"
                   >
                     <Sparkles size={20} /> Access Prompt Library
                   </button>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full max-w-md mt-4">
-                  <div className="flex-1 relative group/coming">
-                    <button 
-                      disabled
-                      className="w-full py-5 bg-slate-900/40 text-slate-500 rounded-2xl font-bold text-sm border border-slate-800/50 flex items-center justify-center gap-3 cursor-not-allowed"
-                    >
-                      <User size={20} /> Order Vendor
-                    </button>
-                    <div className="absolute -top-2 -right-2 bg-indigo-500 text-[8px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-lg">Coming Soon</div>
-                  </div>
-                  
-                  <div className="flex-1 relative group/coming">
-                    <button 
-                      disabled
-                      className="w-full py-5 bg-slate-900/40 text-slate-500 rounded-2xl font-bold text-sm border border-slate-800/50 flex items-center justify-center gap-3 cursor-not-allowed"
-                    >
-                      <Sparkles size={20} /> Order Artist
-                    </button>
-                    <div className="absolute -top-2 -right-2 bg-purple-500 text-[8px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-lg">Coming Soon</div>
-                  </div>
-                </div>
-
-                {/* New HD Scalper Button */}
-                <div className="flex flex-col gap-4 relative z-10 w-full max-w-md mt-4">
+                <div className="flex flex-col gap-4 relative z-10 w-full max-w-md mt-2">
                   <div className="relative group/coming">
                     <button 
                       disabled
-                      className="w-full py-5 bg-slate-900/40 text-slate-500 rounded-2xl font-bold text-sm border border-slate-800/50 flex items-center justify-center gap-3 cursor-not-allowed"
+                      className="w-full py-4 bg-slate-900/40 text-slate-500 rounded-2xl font-bold text-sm border border-slate-800/50 flex items-center justify-center gap-3 cursor-not-allowed"
                     >
-                      <Maximize2 size={20} /> Create Photo HD Scalper
+                      <User size={20} /> Order Vendor or Artist
                     </button>
-                    <div className="absolute -top-2 -right-2 bg-rose-500 text-[8px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-lg">Coming Soon</div>
+                    <div className="absolute -top-2 -right-2 bg-indigo-500 text-[8px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-lg">Coming Soon</div>
                   </div>
                 </div>
+
 
                 {/* Decorative Pattern */}
                 <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none">
@@ -624,15 +609,17 @@ export default function App() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {photos.map((photo, idx) => (
-                <div key={photo.id} className="flex flex-col">
+                <Fragment key={photo.id}>
                   <PhotoCard 
                     photo={photo} 
                     onAction={handlePhotoAction} 
                     isLiked={profile?.likedPhotos?.includes(photo.id) || false} 
                   />
-                  {/* Google Adsense mock every 3 items */}
-                  {(idx + 1) % 3 === 0 && <div className="mt-8"><AdMock /></div>}
-                </div>
+                  {/* Google Adsense mock every 3 items as requested - now same size as photo card */}
+                  {(idx + 1) % 3 === 0 && (
+                    <AdMock size="card" />
+                  )}
+                </Fragment>
               ))}
               {photos.length === 0 && (
                 <div className="col-span-full py-32 flex flex-col items-center justify-center text-gray-400 bg-white rounded-3xl border border-dashed border-gray-200">
@@ -651,7 +638,6 @@ export default function App() {
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="bento-card p-12 mb-12 text-center bg-gradient-to-br from-slate-900 to-slate-950">
               <h2 className="text-3xl font-black mb-4 tracking-tighter">Master Prompt Library</h2>
-              <p className="text-slate-500 text-sm font-medium">Vetted prompts for architectural and human restoration.</p>
             </div>
             <div className="grid grid-cols-1 gap-4">
               {prompts.map((p, idx) => (
@@ -665,17 +651,18 @@ export default function App() {
                       <p className="text-[10px] text-slate-500 font-mono truncate max-w-[200px] sm:max-w-xs italic">{p.prompt}</p>
                     </div>
                     <button 
-                      onClick={() => { setPendingAction({ type: 'libraryPrompt', data: p.prompt }); setShowAdModal(true); }}
+                      onClick={() => { 
+                        setPendingAction({ type: 'libraryPrompt', data: p.prompt }); 
+                        setShowAdModal(true); 
+                      }}
                       className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 text-slate-200 rounded-xl font-bold hover:bg-indigo-600 hover:text-white transition-all text-[10px] border border-slate-700 active:scale-95 shadow-lg group-hover:border-indigo-500 flex-shrink-0"
                     >
-                      <Copy size={14} /> Copy Prompt
+                      <Copy size={14} /> Copy Master Prompt
                     </button>
                   </div>
-                  {/* Google Adsense mock every 4 items */}
-                  {(idx + 1) % 4 === 0 && (
-                    <div className="w-full">
-                      <AdMock size="banner" />
-                    </div>
+                  {/* Google Adsense mock every 3 items - now same size as prompt labels */}
+                  {(idx + 1) % 3 === 0 && (
+                    <AdMock size="row" />
                   )}
                 </div>
               ))}
@@ -914,22 +901,22 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-2xl w-full bg-slate-900 rounded-[32px] overflow-hidden shadow-2xl border border-slate-800"
+        className="max-w-xl w-full bg-slate-900 rounded-[28px] overflow-hidden shadow-2xl border border-slate-800 flex flex-col max-h-[95vh]"
       >
-        <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-          <h2 className="text-2xl font-black tracking-tighter">
+        <div className="p-5 sm:p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 flex-shrink-0">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tighter">
             {step === 0 ? "Share Your Work" : uploadType === 'transformation' ? "Transformation Details" : "Prompt Details"}
           </h2>
           <button onClick={resetAndClose} className="p-2 hover:bg-slate-800 rounded-full transition-all text-slate-400">
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
         
-        <div className="p-8 space-y-8">
+        <div className="p-5 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto">
           {step === 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button 
@@ -1135,20 +1122,20 @@ function ProfileModal({ isOpen, onClose, profile, onSave }: { isOpen: boolean, o
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-xl w-full bg-slate-900 rounded-[32px] overflow-hidden shadow-2xl border border-slate-800 max-h-[90vh] flex flex-col"
+        className="max-w-lg w-full bg-slate-900 rounded-[28px] overflow-hidden shadow-2xl border border-slate-800 max-h-[92vh] flex flex-col"
       >
-        <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-          <h2 className="text-2xl font-black tracking-tighter">Profile Settings</h2>
+        <div className="p-5 sm:p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 flex-shrink-0">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tighter">Profile Settings</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-all text-slate-400">
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
         
-        <div className="p-8 overflow-y-auto space-y-6">
+        <div className="p-5 sm:p-8 overflow-y-auto space-y-6">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Display Name</label>
             <input 
