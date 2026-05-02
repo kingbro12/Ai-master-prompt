@@ -10,71 +10,121 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == 'ab.abrojeho76@gmail.com' && request.auth.token.email_verified == true; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
     // --- User Rules ---
     match /users/{userId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isOwner(userId) && isVerified() && isValidUser(incoming());
-      allow update: if isOwner(userId) && isVerified() && isValidUser(incoming()) && (
-        // Prevent privilege escalation - don't allow changing uid or email
-        incoming().get('uid', '') == existing().get('uid', '') &&
-        incoming().get('email', '') == existing().get('email', '')
+      allow get: if isValidId(userId);
+      allow list: if isSignedIn(); // For vendor marketplace
+      allow create: if isValidId(userId) && isOwner(userId) && isVerified() && isValidUser(incoming());
+      allow update: if isValidId(userId) && (
+        isAdmin() || (
+          isOwner(userId) && isVerified() && isValidUser(incoming()) && (
+            // Logic for regular profile update
+            (incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'isVendor', 'vendorProfile', 'likedPhotos']))
+          ) &&
+          // Immutable fields for non-admin
+          incoming().uid == existing().uid &&
+          incoming().email == existing().email &&
+          incoming().get('isVerified', false) == existing().get('isVerified', false) &&
+          incoming().get('status', 'active') == existing().get('status', 'active')
+        )
       );
 
       function isValidUser(data) {
-        return data.get('uid', '') == request.auth.uid 
-          && data.get('displayName', '') is string 
-          && data.get('displayName', '').size() <= 100
-          && (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() <= 2000))
-          && (data.get('email', null) == null || (data.email is string && data.email.size() <= 200))
+        return data.keys().hasAll(['uid', 'displayName', 'email'])
+          && data.uid == request.auth.uid
+          && data.displayName is string && data.displayName.size() <= 100
+          && data.email is string && data.email.size() <= 200
+          && (data.get('photoURL', '') is string && data.photoURL.size() <= 2000)
           && (data.get('isVendor', false) is bool)
+          && (data.get('isVerified', false) is bool)
+          && (data.get('status', 'active') in ['active', 'suspended', 'banned'])
+          && (data.get('likedPhotos', []) is list)
           && (data.get('vendorProfile', null) == null || (
-            data.vendorProfile is map 
-            && data.vendorProfile.get('location', '') is string
-            && data.vendorProfile.get('contact', '') is string
-          ));
+              data.vendorProfile is map 
+              && (data.vendorProfile.get('services', []) is list)
+              && (data.vendorProfile.get('location', '') is string && data.vendorProfile.get('location', '').size() <= 200)
+              && (data.vendorProfile.get('contact', '') is string && data.vendorProfile.get('contact', '').size() <= 200)
+              && (data.vendorProfile.get('description', '') is string && data.vendorProfile.get('description', '').size() <= 1000)
+             ));
       }
+    }
+
+    // --- Admin Management Collections ---
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(categoryId);
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(announcementId);
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(settingId);
+    }
+
+    match /analytics/{analyticId} {
+      allow read: if isAdmin();
+      allow write: if isValidId(analyticId) && isVerified(); // Must be a verified user to track analytics
     }
 
     // --- Photo Rules ---
     match /photos/{photoId} {
-      allow read: if true;
-      allow create: if isVerified() && isValidPhoto(incoming()) && incoming().userId == request.auth.uid;
-      allow update: if isVerified() && isOwner(existing().userId) && (
-        // Partial update logic
-        incoming().diff(existing()).affectedKeys().hasAny(['category', 'masterPrompt', 'likesCount'])
-      ) && isValidPhoto(incoming());
-      allow delete: if isVerified() && isOwner(existing().userId);
+      allow get: if isValidId(photoId);
+      allow list: if true;
+      allow create: if isValidId(photoId) && isVerified() && isValidPhoto(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isValidId(photoId) && (
+        isAdmin() || (
+          isVerified() && (
+            // Action: Like (any verified user)
+            (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount']) && incoming().likesCount == existing().likesCount + 1) ||
+            // Action: Edit (only owner)
+            (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['category', 'masterPrompt']))
+          ) && 
+          isValidPhoto(incoming()) &&
+          // Immutable fields
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt
+        )
+      );
+      allow delete: if isValidId(photoId) && (isAdmin() || (isVerified() && isOwner(existing().userId)));
 
       function isValidPhoto(data) {
-        return data.get('userId', '') is string && data.get('userId', '').size() <= 128
-          && data.get('userName', '') is string && data.get('userName', '').size() <= 100
-          && data.get('category', '') in ['human-restoration', 'building-decoration', 'other']
-          && data.get('beforePhotoUrl', '') is string && data.get('beforePhotoUrl', '').size() <= 400000
-          && data.get('afterPhotoUrl', '') is string && data.get('afterPhotoUrl', '').size() <= 400000
-          && data.get('masterPrompt', '') is string && data.get('masterPrompt', '').size() <= 5000
-          && data.get('createdAt', request.time) is timestamp
-          && data.get('likesCount', 0) is int;
+        return data.keys().hasAll(['userId', 'userName', 'category', 'beforePhotoUrl', 'afterPhotoUrl', 'masterPrompt', 'createdAt'])
+          && data.userId is string && data.userId.size() <= 128
+          && data.userName is string && data.userName.size() <= 100
+          && data.category in ['human-restoration', 'building-decoration', 'other']
+          && data.beforePhotoUrl is string && data.beforePhotoUrl.size() <= 500000
+          && data.afterPhotoUrl is string && data.afterPhotoUrl.size() <= 500000
+          && data.masterPrompt is string && data.masterPrompt.size() <= 5000
+          && data.createdAt is timestamp
+          && (data.get('likesCount', 0) is int);
       }
     }
 
     // --- Prompt Library Rules ---
     match /prompts/{promptId} {
-      allow read: if true;
-      allow create: if isVerified() && isValidPrompt(incoming()) && incoming().userId == request.auth.uid;
-      allow update, delete: if isVerified() && isOwner(existing().userId);
+      allow get: if isValidId(promptId);
+      allow list: if true;
+      allow create: if isValidId(promptId) && isVerified() && isValidPrompt(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isValidId(promptId) && (isAdmin() || (isVerified() && isOwner(existing().userId) && isValidPrompt(incoming())));
+      allow delete: if isValidId(promptId) && (isAdmin() || (isVerified() && isOwner(existing().userId)));
 
       function isValidPrompt(data) {
-        return data.get('userId', '') is string && data.get('userId', '').size() <= 128
-          && data.get('userName', '') is string && data.get('userName', '').size() <= 100
-          && data.get('title', '') is string && data.get('title', '').size() <= 200
-          && data.get('prompt', '') is string && data.get('prompt', '').size() <= 10000
-          && data.get('category', '') in ['Human', 'Architecture', 'Other']
-          && data.get('createdAt', request.time) is timestamp;
+        return data.keys().hasAll(['userId', 'userName', 'title', 'prompt', 'category', 'createdAt'])
+          && data.userId is string && data.userId.size() <= 128
+          && data.userName is string && data.userName.size() <= 100
+          && data.title is string && data.title.size() <= 200
+          && data.prompt is string && data.prompt.size() <= 10000
+          && data.category is string && data.category.size() <= 50
+          && data.createdAt is timestamp;
       }
     }
   }

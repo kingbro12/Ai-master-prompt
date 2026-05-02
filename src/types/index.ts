@@ -4,6 +4,8 @@ export interface UserProfile {
   photoURL?: string;
   email?: string;
   isVendor?: boolean;
+  isVerified?: boolean;
+  status?: 'active' | 'suspended' | 'banned';
   likedPhotos?: string[];
   vendorProfile?: {
     services: string[];
@@ -13,7 +15,35 @@ export interface UserProfile {
   };
 }
 
-export type PhotoCategory = 'human-restoration' | 'building-decoration' | 'other';
+export type PhotoCategory = 'human-restoration' | 'building-decoration' | 'other' | string;
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  icon?: string;
+}
+
+export interface Announcement {
+  id: string;
+  text: string;
+  createdAt: any;
+  isActive: boolean;
+}
+
+export interface AdminSettings {
+  adFrequency: number;
+  activeAiLink: string;
+  seoTitle: string;
+  seoDescription: string;
+}
+
+export interface PromptAnalytic {
+  id: string;
+  promptId: string;
+  copyCount: number;
+  lastCopiedAt: any;
+}
 
 export interface Photo {
   id: string;

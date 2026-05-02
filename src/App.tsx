@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, Fragment } from 'react';
+import { useState, useEffect, useRef, ChangeEvent, Fragment, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent, FormEvent } from 'react';
 import { 
   Plus, 
   Search, 
@@ -20,7 +20,18 @@ import {
   LayoutGrid,
   Heart,
   Share2,
-  Filter
+  Trash2,
+  MoreVertical,
+  Filter,
+  Settings,
+  Layout,
+  MessageSquare,
+  BarChart3,
+  Users,
+  CheckCircle,
+  Ban,
+  TrendingUp,
+  Globe
 } from 'lucide-react';
 import { 
   signInWithPopup, 
@@ -37,9 +48,11 @@ import {
   addDoc, 
   serverTimestamp, 
   orderBy,
+  getDocs,
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   updateDoc,
   increment,
   getDocFromServer,
@@ -47,8 +60,8 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { cn, handleFirestoreError, OperationType, copyToClipboard } from './lib/utils';
-import { Photo, PhotoCategory, UserProfile, PromptLibraryItem } from './types/index';
-import { motion, AnimatePresence } from 'motion/react';
+import { Photo, PhotoCategory, UserProfile, PromptLibraryItem, Category, Announcement, AdminSettings, PromptAnalytic } from './types/index';
+import { motion, AnimatePresence, useSpring, useTransform } from 'motion/react';
 
 // --- Connection Test ---
 async function testConnection() {
@@ -173,112 +186,178 @@ const VideoAdModal = ({ isOpen, onClose, onComplete }: { isOpen: boolean, onClos
 // --- Component: Before After Slider ---
 const BeforeAfterSlider = ({ before, after }: { before: string, after: string }) => {
   const [sliderPos, setSliderPos] = useState(50);
-  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleMove = (e: any) => {
-    if (!isDragging) return;
-    
-    const container = e.currentTarget.getBoundingClientRect();
-    const x = e.touches ? e.touches[0].clientX : e.clientX;
-    const position = ((x - container.left) / container.width) * 100;
+  // Use a spring for smooth, premium-feeling movement
+  const springPos = useSpring(50, {
+    damping: 30,
+    stiffness: 250,
+    mass: 0.5
+  });
+
+  useEffect(() => {
+    springPos.set(sliderPos);
+  }, [sliderPos, springPos]);
+
+  const springClipPath = useTransform(springPos, (v) => `inset(0 ${100 - (v as number)}% 0 0)`);
+  const springLeft = useTransform(springPos, (v) => `${v}%`);
+
+  const handleMove = (e: ReactMouseEvent | ReactTouchEvent) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? (e as ReactTouchEvent).touches[0].clientX : (e as ReactMouseEvent).clientX;
+    const position = ((clientX - rect.left) / rect.width) * 100;
     
     setSliderPos(Math.max(0, Math.min(100, position)));
   };
 
+  const handleLeave = () => {
+    setSliderPos(50); // Reset to center when mouse leaves
+  };
+
   return (
     <div 
-      className="relative w-full h-full overflow-hidden cursor-ew-resize select-none"
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden cursor-ew-resize select-none bg-slate-900"
       onMouseMove={handleMove}
       onTouchMove={handleMove}
-      onMouseDown={() => setIsDragging(true)}
-      onMouseUp={() => setIsDragging(false)}
-      onMouseLeave={() => setIsDragging(false)}
-      onTouchStart={() => setIsDragging(true)}
-      onTouchEnd={() => setIsDragging(false)}
+      onMouseLeave={handleLeave}
     >
       {/* After image (background) */}
-      <img src={after} className="absolute inset-0 w-full h-full object-cover" alt="After" />
+      <img src={after || undefined} className="absolute inset-0 w-full h-full object-cover" alt="After" referrerPolicy="no-referrer" />
       
-      {/* Before image (overlay clip) */}
-      <div 
-        className="absolute inset-0 w-full h-full overflow-hidden border-r-2 border-white shadow-[2px_0_10px_rgba(0,0,0,0.5)] z-10"
-        style={{ width: `${sliderPos}%` }}
+      {/* Before image (overlay with clip-path) */}
+      <motion.div 
+        className="absolute inset-0 w-full h-full z-10 pointer-events-none"
+        style={{ clipPath: springClipPath }}
       >
-        <div style={{ width: `${(100 / sliderPos) * 100}%`, height: '100%', position: 'absolute', top: 0, left: 0 }}>
-             <img src={before} className="w-full h-full object-cover" alt="Before" />
-        </div>
-      </div>
+        <img 
+          src={before || undefined} 
+          className="absolute inset-0 w-full h-full object-cover" 
+          alt="Before" 
+          referrerPolicy="no-referrer" 
+        />
+        {/* White line border at the edge of clip */}
+        <div className="absolute top-0 bottom-0 right-0 w-[2px] bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] h-full" />
+      </motion.div>
 
       {/* Slider Handle */}
-      <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-white z-20 pointer-events-none"
-        style={{ left: `${sliderPos}%` }}
+      <motion.div 
+        className="absolute top-0 bottom-0 w-px bg-white/80 z-20 pointer-events-none"
+        style={{ left: springLeft }}
       >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-xl flex items-center justify-center border border-slate-200">
-          <ArrowRightLeft size={14} className="text-slate-900" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white shadow-xl flex items-center justify-center border border-slate-200 text-slate-900">
+          <ArrowRightLeft size={12} />
         </div>
-      </div>
+      </motion.div>
 
-      {/* Labels */}
-      <div className="absolute bottom-4 left-4 z-20 pointer-events-none opacity-60">
-         <span className="bg-black/60 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-bold text-white border border-white/10 uppercase tracking-widest">Before</span>
+      {/* Static Labels */}
+      <div className="absolute bottom-3 left-3 z-30 pointer-events-none">
+         <span className="bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[7px] font-black text-white border border-white/10 uppercase tracking-widest">Before</span>
       </div>
-      <div className="absolute bottom-4 right-4 z-20 pointer-events-none opacity-60">
-         <span className="bg-indigo-600/60 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-bold text-white border border-white/10 uppercase tracking-widest">After</span>
+      <div className="absolute bottom-3 right-3 z-30 pointer-events-none">
+         <span className="bg-indigo-600/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[7px] font-black text-white border border-white/10 uppercase tracking-widest">After</span>
       </div>
     </div>
   );
 };
 
+// --- Component: Ad Card ---
+const AdCard = () => (
+  <div className="w-full h-full min-h-[300px] border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center p-8 bg-slate-950/50 group hover:border-indigo-500/50 transition-colors">
+    <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+      <span className="text-xl">📢</span>
+    </div>
+    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sponsored</p>
+    <h3 className="text-sm font-bold text-slate-300 text-center mb-4">Space for Advertisement</h3>
+    <button className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline underline-offset-4">Learn More</button>
+  </div>
+);
+
 // --- Component: Photo Card ---
-const PhotoCard = ({ photo, onAction, isLiked }: { photo: Photo, onAction: (p: Photo, action: 'prompt' | 'like' | 'share') => void, isLiked: boolean }) => {
+const PhotoCard = ({ photo, onAction, isLiked, categories, canDelete }: { photo: Photo, onAction: (p: Photo, action: 'prompt' | 'like' | 'share' | 'delete') => void, isLiked: boolean, categories: Category[], canDelete?: boolean }) => {
+  const categoryName = categories.find(c => c.slug === photo.category)?.name || photo.category.replace('-', ' ');
+  const [showMenu, setShowMenu] = useState(false);
+  
   return (
-    <div className="bento-card group flex flex-col">
+    <div className="bento-card group flex flex-col overflow-hidden relative">
       <div className="relative overflow-hidden aspect-[4/5] bg-slate-950">
         <BeforeAfterSlider before={photo.beforePhotoUrl} after={photo.afterPhotoUrl} />
         
         <div className="absolute top-4 left-4 z-20 pointer-events-none">
           <span className="text-slate-400 text-[9px] font-bold backdrop-blur-md px-2 py-1 rounded-md bg-slate-950/40 uppercase tracking-widest border border-white/10">
-            {photo.category.replace('-', ' ')}
+            {categoryName}
           </span>
+        </div>
+
+        {/* Dropdown Menu Toggle */}
+        <div className="absolute top-4 right-4 z-30">
+          <button 
+            onClick={() => setShowMenu(!showMenu)}
+            className="w-8 h-8 rounded-full bg-slate-950/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-slate-900 transition-all active:scale-95"
+          >
+            <MoreVertical size={16} />
+          </button>
+
+          {showMenu && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowMenu(false)}
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="absolute right-0 mt-2 w-36 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden"
+              >
+                <button 
+                  onClick={() => { onAction(photo, 'share'); setShowMenu(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-all border-b border-slate-800/50"
+                >
+                  <Share2 size={14} className="text-slate-500" /> Share Creation
+                </button>
+                {canDelete && (
+                  <button 
+                    onClick={() => { onAction(photo, 'delete'); setShowMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-rose-400 hover:bg-rose-500/10 transition-all"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                )}
+              </motion.div>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="p-5 flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 font-bold text-[10px]">
+      <div className="p-3 sm:p-5 flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 font-bold text-[8px] sm:text-[10px]">
             {photo.userName.charAt(0)}
           </div>
-          <p className="text-xs font-semibold text-slate-300 tracking-tight">{photo.userName}</p>
+          <p className="text-[10px] sm:text-xs font-semibold text-slate-300 tracking-tight truncate">{photo.userName}</p>
         </div>
-
-        <div className="flex items-center gap-2">
+        
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button 
             onClick={() => onAction(photo, 'like')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all text-[10px] font-bold border",
+              "flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 rounded-lg sm:rounded-xl transition-all text-[8px] sm:text-[10px] font-bold border",
               isLiked 
                 ? "bg-rose-600 text-white border-rose-500" 
                 : "bg-slate-800 text-rose-400 border-slate-700 hover:border-rose-500 group/like"
             )}
           >
-            <Heart size={14} className={cn("transition-all", (isLiked || photo.likesCount > 0) && "fill-current")} />
+            <Heart size={12} className={cn("sm:w-[14px] sm:h-[14px] transition-all", (isLiked || photo.likesCount > 0) && "fill-current")} />
             <span className="tabular-nums">{photo.likesCount || 0}</span>
           </button>
           
           <button 
             onClick={() => onAction(photo, 'prompt')}
-            className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-all text-[10px] font-bold border border-indigo-500 shadow-lg shadow-indigo-500/10 group/btn"
+            className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-3 rounded-lg sm:rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-all text-[9px] sm:text-[11px] font-bold border border-indigo-500 shadow-lg shadow-indigo-500/10 group/btn whitespace-nowrap"
           >
-            <Sparkles size={14} className="group-hover/btn:animate-pulse" /> Copy Master Prompt
-          </button>
-
-          <button 
-            onClick={() => onAction(photo, 'share')}
-            className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-800 text-slate-400 hover:bg-white hover:text-slate-950 transition-all border border-slate-700 hover:border-white"
-            title="Share on Social Media"
-          >
-            <Share2 size={16} />
+            <Copy size={13} className="sm:w-[15px] sm:h-[15px] group-hover/btn:scale-110 transition-transform" /> 
+            <span>Prompt</span>
           </button>
         </div>
       </div>
@@ -291,15 +370,25 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [activeTab, setActiveTab] = useState<'gallery' | 'prompts' | 'vendors'>('gallery');
-  const [categoryFilter, setCategoryFilter] = useState<PhotoCategory | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<'gallery' | 'prompts' | 'admin'>('gallery');
+  const [categoryFilter, setCategoryFilter] = useState<PhotoCategory | string>('all');
+  const [isAdminVerified, setIsAdminVerified] = useState(false);
+  const [initialUploadType, setInitialUploadType] = useState<'transformation' | 'prompt-only' | 'single-image' | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [prompts, setPrompts] = useState<PromptLibraryItem[]>([]);
-  const [vendors, setVendors] = useState<UserProfile[]>([]);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [analytics, setAnalytics] = useState<PromptAnalytic[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  
+  const isSystemAdmin = user?.email === 'ab.abrojeho76@gmail.com';
   
   // Modals
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ photo?: Photo, type: string, data?: string } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
@@ -351,24 +440,78 @@ export default function App() {
       setPhotos(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Photo)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'photos'));
 
-    // Vendors
-    const vendorsQuery = query(collection(db, 'users'), where('isVendor', '==', true));
-    const unsubVendors = onSnapshot(vendorsQuery, (snapshot) => {
-      setVendors(snapshot.docs.map(d => d.data() as UserProfile));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
-
     // Prompts
     const promptsQuery = query(collection(db, 'prompts'), orderBy('createdAt', 'desc'));
     const unsubPrompts = onSnapshot(promptsQuery, (snapshot) => {
       setPrompts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PromptLibraryItem)));
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'prompts'));
 
+    // Admin Specific Collections
+    let unsubSettings: () => void = () => {};
+    let unsubAnnouncements: () => void = () => {};
+    let unsubCategories: () => void = () => {};
+    let unsubAnalytics: () => void = () => {};
+    let unsubAllUsers: () => void = () => {};
+
+    // Settings & Announcements apply to everyone (readonly for them)
+    unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (doc) => {
+      if (doc.exists()) setAdminSettings(doc.data() as AdminSettings);
+    });
+
+    unsubAnnouncements = onSnapshot(query(collection(db, 'announcements'), where('isActive', '==', true), orderBy('createdAt', 'desc')), (snap) => {
+      setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() } as Announcement)));
+    });
+
+    unsubCategories = onSnapshot(collection(db, 'categories'), (snap) => {
+      setCategories(snap.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
+    });
+
+    if (isSystemAdmin) {
+      unsubAnalytics = onSnapshot(collection(db, 'analytics'), (snap) => {
+        setAnalytics(snap.docs.map(d => ({ id: d.id, ...d.data() } as PromptAnalytic)));
+      });
+      unsubAllUsers = onSnapshot(collection(db, 'users'), (snap) => {
+        setAllUsers(snap.docs.map(d => d.data() as UserProfile));
+      });
+    }
+
+    // Seed default categories if empty (Admin only or anyone once)
+    const seedCategories = async () => {
+      const snap = await getDocs(collection(db, 'categories'));
+      if (snap.empty) {
+        const defaults = [
+          { name: 'Human Restoration', slug: 'human-restoration' },
+          { name: 'Building Decoration', slug: 'building-decoration' },
+          { name: 'Character Design', slug: 'character-design' },
+          { name: 'Nature Scenes', slug: 'nature' },
+          { name: 'Abstract Art', slug: 'abstract' }
+        ];
+        for (const cat of defaults) {
+          await addDoc(collection(db, 'categories'), cat);
+        }
+      }
+    };
+    seedCategories();
+
     return () => {
       unsubPhotos();
-      unsubVendors();
       unsubPrompts();
+      unsubSettings();
+      unsubAnnouncements();
+      unsubCategories();
+      unsubAnalytics();
+      unsubAllUsers();
     };
   }, [categoryFilter]);
+
+  // SEO Effect
+  useEffect(() => {
+    if (adminSettings) {
+      document.title = adminSettings.seoTitle;
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) metaDesc.setAttribute('content', adminSettings.seoDescription);
+    }
+  }, [adminSettings]);
 
   const handleLogin = async () => {
     if (isLoggingIn) return;
@@ -387,7 +530,16 @@ export default function App() {
     }
   };
 
-  const handlePhotoAction = async (photo: Photo, type: 'prompt' | 'like' | 'share') => {
+  const handlePhotoAction = async (photo: Photo, type: 'prompt' | 'like' | 'share' | 'delete') => {
+    if (type === 'delete') {
+      if (!window.confirm("Are you sure you want to delete this creation?")) return;
+      try {
+        await deleteDoc(doc(db, 'photos', photo.id));
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, `photos/${photo.id}`);
+      }
+      return;
+    }
     if (type === 'like') {
       if (!user) {
         handleLogin();
@@ -462,19 +614,43 @@ export default function App() {
 
     if (pendingAction.type === 'prompt' && pendingAction.photo) {
       copyToClipboard(pendingAction.photo.masterPrompt);
-      window.open('https://gemini.google.com/', '_blank');
+      // Log analytic
+      updateDoc(doc(db, 'analytics', pendingAction.photo.id), {
+         promptId: pendingAction.photo.id,
+         copyCount: increment(1),
+         lastCopiedAt: serverTimestamp()
+      }).catch(() => {
+        // If doc doesn't exist, create it
+        setDoc(doc(db, 'analytics', pendingAction.photo.id), {
+           promptId: pendingAction.photo.id,
+           copyCount: 1,
+           lastCopiedAt: serverTimestamp()
+        });
+      });
+      window.open(adminSettings?.activeAiLink || 'https://gemini.google.com/', '_blank');
     } else if (pendingAction.type === 'libraryPrompt' && pendingAction.data) {
        copyToClipboard(pendingAction.data);
-       window.open('https://gemini.google.com/', '_blank');
+       window.open(adminSettings?.activeAiLink || 'https://gemini.google.com/', '_blank');
     }
     setPendingAction(null);
   };
+
+  const filteredPhotos = photos.filter(p => 
+    p.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.masterPrompt.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredPrompts = prompts.filter(p => 
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.prompt.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20 flex-shrink-0">
               <Sparkles size={18} />
@@ -485,162 +661,208 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 ml-auto">
-            <button className="flex items-center justify-center w-9 h-9 rounded-full bg-slate-900 border border-slate-800 text-slate-500 hover:text-white hover:border-slate-700 transition-all shadow-inner">
-              <Search size={14} />
-            </button>
+            <div className="hidden md:flex items-center gap-1">
+              <button 
+                onClick={() => setActiveTab('gallery')}
+                className={cn(
+                  "px-4 py-2 rounded-full text-[10px] font-bold transition-all",
+                  activeTab === 'gallery' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                Community Gallery
+              </button>
+              <button 
+                onClick={() => setActiveTab('prompts')}
+                className={cn(
+                  "px-4 py-2 rounded-full text-[10px] font-bold transition-all",
+                  activeTab === 'prompts' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                Prompt Library
+              </button>
+              {(isSystemAdmin || isAdminVerified) && (
+                <button 
+                  onClick={() => setActiveTab('admin')}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-[10px] font-bold transition-all flex items-center gap-2",
+                    activeTab === 'admin' ? "bg-amber-500/10 text-amber-400" : "text-amber-500/60 hover:text-amber-400"
+                  )}
+                >
+                  <Settings size={12} /> Admin
+                </button>
+              )}
+              {!isAdminVerified && !isSystemAdmin && (
+                <button 
+                  onClick={() => setShowPasswordModal(true)}
+                  className="px-4 py-2 rounded-full text-[10px] font-bold text-slate-500 hover:text-amber-400 transition-all flex items-center gap-2"
+                >
+                  <Settings size={12} /> Admin Access
+                </button>
+              )}
+            </div>
 
-            <a href="https://gemini.google.com" target="_blank" className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-full text-[10px] font-bold flex items-center gap-2 transition-all border border-slate-700 text-slate-300">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_#60a5fa] hidden xs:block"></div> Gemini
-            </a>
+            <div className="relative group">
+              <input 
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search vision..."
+                className="w-32 sm:w-40 h-9 pl-9 pr-4 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-medium text-slate-300 focus:w-48 focus:border-indigo-500 outline-none transition-all"
+              />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            </div>
 
             {user ? (
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => setShowUploadModal(true)}
-                  className="bg-indigo-600 text-white px-3 sm:px-5 h-9 sm:h-10 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg active:scale-95"
-                >
-                  <Plus size={16} /> <span className="hidden sm:inline">Upload</span>
-                </button>
-                <button 
                   onClick={() => setShowProfileModal(true)}
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-800 p-0.5"
                 >
-                  <img src={user.photoURL || ''} className="w-full h-full rounded-full grayscale hover:grayscale-0 transition-all" />
+                  <img src={user.photoURL || undefined} className="w-full h-full rounded-full grayscale hover:grayscale-0 transition-all shadow-indigo-500/10 shadow-lg" />
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={handleLogin}
-                className="bg-indigo-600 text-white px-4 sm:px-5 h-9 sm:h-10 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-indigo-500 transition-all"
-              >
-                Login
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleLogin}
+                  className="bg-indigo-600 text-white px-4 sm:px-5 h-9 sm:h-10 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
+                >
+                  Login
+                </button>
+              </div>
             )}
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-4 pb-6 px-6 overflow-hidden">
-        <div className="max-w-7xl mx-auto grid grid-cols-12 gap-6 relative z-10">
-          {/* Unified AI Mastery Hub */}
-          <div className="col-span-12 bento-card p-1 items-stretch overflow-hidden bg-slate-900/50">
-            <div className="flex flex-col items-center justify-center min-h-[300px]">
-              {/* Branding Section - Now Centered & Expanded */}
-              <div className="w-full h-full p-8 md:p-12 bg-gradient-to-br from-indigo-600 to-indigo-800 flex flex-col items-center justify-center text-center relative overflow-hidden group">
-                <div className="relative z-10 max-w-2xl">
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white font-bold text-[10px] uppercase tracking-widest mb-4 border border-white/20"
-                  >
-                    <Sparkles size={12} /> AI Vision Portal
-                  </motion.div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full max-w-md">
-                  <button 
-                    onClick={() => setActiveTab('gallery')}
-                    className="flex-1 py-4 bg-white text-indigo-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 group/btn"
-                  >
-                    <ArrowRightLeft size={20} className="group-hover/btn:rotate-180 transition-transform duration-500" /> 
-                    Explore Community Gallery
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('prompts')}
-                    className="flex-1 py-4 bg-white text-indigo-600 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3 backdrop-blur-md"
-                  >
-                    <Sparkles size={20} /> Access Prompt Library
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-4 relative z-10 w-full max-w-md mt-2">
-                  <div className="relative group/coming">
-                    <button 
-                      disabled
-                      className="w-full py-4 bg-slate-900/40 text-slate-500 rounded-2xl font-bold text-sm border border-slate-800/50 flex items-center justify-center gap-3 cursor-not-allowed"
-                    >
-                      <User size={20} /> Order Vendor or Artist
-                    </button>
-                    <div className="absolute -top-2 -right-2 bg-indigo-500 text-[8px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-tighter shadow-lg">Coming Soon</div>
-                  </div>
-                </div>
-
-
-                {/* Decorative Pattern */}
-                <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none">
-                   <div className="absolute top-10 right-10 w-60 h-60 bg-white rounded-full blur-[100px] animate-pulse" />
-                   <div className="absolute bottom-10 left-10 w-96 h-96 bg-indigo-400 rounded-full blur-[120px]" />
-                </div>
+      <section className="relative pt-12 pb-10 px-6 overflow-hidden">
+        <div className="max-w-[1400px] mx-auto relative z-10 text-center">
+          {announcements.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-8 p-4 bg-indigo-600 rounded-2xl border border-indigo-400 shadow-xl shadow-indigo-500/20 max-w-2xl mx-auto flex items-center justify-center gap-3"
+            >
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white animate-pulse">
+                <MessageSquare size={16} />
               </div>
-            </div>
+              <p className="text-xs font-bold text-white tracking-tight">{announcements[0].text}</p>
+            </motion.div>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold text-[10px] uppercase tracking-widest mb-6 border border-indigo-500/20"
+          >
+            <Sparkles size={12} /> AI Vision Portal
+          </motion.div>
+          
+          <div className="flex flex-wrap gap-4 justify-center">
+            <button 
+              onClick={() => setActiveTab('gallery')}
+              className={cn(
+                "px-8 py-4 rounded-2xl font-bold text-sm transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3",
+                activeTab === 'gallery' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
+              )}
+            >
+              <ArrowRightLeft size={20} />
+              Explore Community Gallery
+            </button>
+            <button 
+              onClick={() => setActiveTab('prompts')}
+              className={cn(
+                "px-8 py-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3",
+                activeTab === 'prompts' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
+              )}
+            >
+              <Sparkles size={20} />
+              Access Prompt Library
+            </button>
           </div>
         </div>
 
-        {/* Decorative elements */}
-        <div className="absolute top-1/2 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-[120px] -z-0 -translate-y-1/2" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px] -z-0" />
+        {/* Decorative ambient glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] -z-0" />
       </section>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 pb-20">
+      <main className="max-w-[1400px] mx-auto px-6 pb-20">
         {/* Gallery View */}
         {activeTab === 'gallery' && (
-          <div className="space-y-12">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar">
-                {(['all', 'human-restoration', 'building-decoration', 'other'] as const).map((cat) => (
+          <div className="space-y-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar w-full md:w-auto">
+                <button
+                  onClick={() => setCategoryFilter('all')}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border",
+                    categoryFilter === 'all' 
+                      ? "bg-indigo-600/10 text-indigo-400 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
+                      : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-700 hover:text-slate-300"
+                  )}
+                >
+                  <Filter size={12} />
+                  <span>All Items</span>
+                </button>
+                {categories.map((cat) => (
                   <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat)}
+                    key={cat.id}
+                    onClick={() => setCategoryFilter(cat.slug)}
                     className={cn(
-                      "px-6 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border",
-                      categoryFilter === cat 
+                      "px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border",
+                      categoryFilter === cat.slug 
                         ? "bg-indigo-600/10 text-indigo-400 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
                         : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-700 hover:text-slate-300"
                     )}
                   >
-                    {cat === 'all' && <Filter size={12} />}
-                    <span className="capitalize">{cat.replace('-', ' ')}</span>
+                    <span className="capitalize">{cat.name}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {photos.map((photo, idx) => (
+            <div 
+              className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-6 pb-10"
+            >
+              {filteredPhotos.map((photo, idx) => (
                 <Fragment key={photo.id}>
-                  <PhotoCard 
-                    photo={photo} 
-                    onAction={handlePhotoAction} 
-                    isLiked={profile?.likedPhotos?.includes(photo.id) || false} 
-                  />
-                  {/* Google Adsense mock every 3 items as requested - now same size as photo card */}
-                  {(idx + 1) % 3 === 0 && (
-                    <AdMock size="card" />
+                  <div className="w-full">
+                    <PhotoCard 
+                      photo={photo} 
+                      onAction={handlePhotoAction} 
+                      isLiked={profile?.likedPhotos?.includes(photo.id) || false} 
+                      categories={categories}
+                      canDelete={isSystemAdmin || photo.userId === user?.uid}
+                    />
+                  </div>
+                  {/* Inject Ad Card based on admin settings */}
+                  {(idx + 1) % (adminSettings?.adFrequency || 4) === 0 && (
+                    <div className="w-full">
+                      <AdCard />
+                    </div>
                   )}
                 </Fragment>
               ))}
-              {photos.length === 0 && (
-                <div className="col-span-full py-32 flex flex-col items-center justify-center text-gray-400 bg-white rounded-3xl border border-dashed border-gray-200">
+              {filteredPhotos.length === 0 && (
+                <div className="col-span-full py-32 flex flex-col items-center justify-center text-slate-500 bg-slate-900/50 rounded-3xl border border-dashed border-slate-800">
                   <ImageIcon size={48} className="mb-4 opacity-50" />
-                  <p className="text-xl font-bold">No creations found yet</p>
+                  <p className="text-xl font-bold text-slate-300">No creations found yet</p>
                   <p className="text-sm">Be the first to upload an AI transformation!</p>
                 </div>
               )}
             </div>
             <AdMock size="banner" />
           </div>
-        )}
-
-        {/* Prompts Library */}
+        )}        {/* Prompts Library */}
         {activeTab === 'prompts' && (
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="bento-card p-12 mb-12 text-center bg-gradient-to-br from-slate-900 to-slate-950">
               <h2 className="text-3xl font-black mb-4 tracking-tighter">Master Prompt Library</h2>
             </div>
             <div className="grid grid-cols-1 gap-4">
-              {prompts.map((p, idx) => (
+              {filteredPrompts.map((p, idx) => (
                 <div key={p.id} className="flex flex-col gap-4">
                   <div className="bento-card p-5 group flex items-center justify-between hover:bg-slate-800/40">
                     <div className="flex flex-col gap-1 overflow-hidden">
@@ -669,47 +891,19 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* Vendor Marketplace */}
-        {activeTab === 'vendors' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {vendors.map((v) => (
-              <div key={v.uid} className="bento-card p-6 flex flex-col bg-gradient-to-br from-slate-900 to-indigo-950/20">
-                <div className="flex items-center gap-4 mb-6">
-                  <img src={v.photoURL} className="w-14 h-14 rounded-2xl object-cover border border-slate-800" />
-                  <div>
-                    <h3 className="font-bold text-lg tracking-tight text-slate-100">{v.displayName}</h3>
-                    <div className="flex items-center gap-1 text-slate-500 text-[10px] mt-1 font-bold uppercase tracking-widest">
-                      <MapPin size={10} /> {v.vendorProfile?.location || 'Global'}
-                    </div>
-                  </div>
-                </div>
-                <div className="mb-6 flex-1">
-                  <p className="text-xs text-slate-400 line-clamp-3 mb-4 leading-relaxed font-medium italic">
-                    "{v.vendorProfile?.description || 'Ready to transform your vision with AI precision.'}"
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {v.vendorProfile?.services?.map(s => (
-                      <span key={s} className="px-2 py-1 bg-indigo-500/10 text-indigo-400 rounded-md text-[10px] font-bold uppercase tracking-tighter border border-indigo-500/20">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 pt-6 border-t border-slate-800">
-                   <a 
-                    href={`tel:${v.vendorProfile?.contact}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-[10px] hover:bg-white hover:text-slate-950 transition-all border border-slate-700"
-                   >
-                     <Phone size={14} /> Contact
-                   </a>
-                   <button className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 text-white font-bold text-[10px] hover:bg-indigo-500 transition-all">
-                     View Services
-                   </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        
+        {activeTab === 'admin' && (isSystemAdmin || isAdminVerified) && (
+          <AdminDashboard 
+            settings={adminSettings}
+            users={allUsers}
+            analytics={analytics}
+            categories={categories}
+            announcements={announcements}
+            photos={photos}
+            prompts={prompts}
+            onUpload={() => { setInitialUploadType(null); setShowUploadModal(true); }}
+            onPromptPhoto={() => { setInitialUploadType('single-image'); setShowUploadModal(true); }}
+          />
         )}
       </main>
 
@@ -724,6 +918,19 @@ export default function App() {
         isOpen={showUploadModal} 
         onClose={() => setShowUploadModal(false)}
         user={user} 
+        categories={categories}
+        initialType={initialUploadType}
+      />
+
+      <AdminPasswordModal 
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onVerify={(success) => {
+          if (success) {
+            setIsAdminVerified(true);
+            setActiveTab('admin');
+          }
+        }}
       />
 
       <ProfileModal 
@@ -784,13 +991,11 @@ export default function App() {
                    <ul className="space-y-2 text-xs font-bold text-slate-500">
                       <li><button onClick={() => setActiveTab('gallery')} className="hover:text-indigo-400">Gallery</button></li>
                       <li><button onClick={() => setActiveTab('prompts')} className="hover:text-indigo-400">Prompts</button></li>
-                      <li><button onClick={() => setActiveTab('vendors')} className="hover:text-indigo-400">Marketplace</button></li>
                    </ul>
                 </div>
                 <div className="space-y-4">
                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Resources</div>
                    <ul className="space-y-2 text-xs font-bold text-slate-500">
-                      <li><a href="https://gemini.google.com" target="_blank" className="hover:text-indigo-400 flex items-center gap-1">Gemini AI <ExternalLink size={10} /></a></li>
                       <li><a href="#" className="hover:text-indigo-400">Community</a></li>
                       <li><a href="#" className="hover:text-indigo-400">Security</a></li>
                    </ul>
@@ -813,11 +1018,492 @@ export default function App() {
   );
 }
 
+// --- Component: Admin Password Modal ---
+function AdminPasswordModal({ isOpen, onClose, onVerify }: { isOpen: boolean, onClose: () => void, onVerify: (s: boolean) => void }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (password === "qadirali.123") {
+      onVerify(true);
+      onClose();
+      setPassword('');
+      setError(false);
+    } else {
+      setError(true);
+      setTimeout(() => setError(false), 2000);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative"
+      >
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-slate-500 hover:text-white transition-colors"
+        >
+          <X size={20} />
+        </button>
+        
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500 mb-4 border border-amber-500/20">
+            <Settings size={32} />
+          </div>
+          <h2 className="text-2xl font-black tracking-tight text-white">Restricted Access</h2>
+          <p className="text-slate-500 text-sm mt-2 font-medium">Please verify your credentials to continue</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Admin Password</label>
+            <input 
+              autoFocus
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••••••"
+              className={cn(
+                "w-full bg-slate-950 border rounded-2xl px-5 py-4 text-white outline-none transition-all",
+                error ? "border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.1)]" : "border-slate-800 focus:border-amber-500"
+              )}
+            />
+            <AnimatePresence>
+              {error && (
+                <motion.p 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="text-rose-500 text-[10px] font-bold mt-2 ml-1"
+                >
+                  Authentication failed. Please try again.
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+          <button 
+            type="submit"
+            className="w-full py-4 bg-amber-500 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/20 active:scale-[0.98]"
+          >
+            Authorize Access
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+// --- Component: Admin Dashboard ---
+function AdminDashboard({ 
+  settings, 
+  users, 
+  analytics, 
+  categories, 
+  announcements,
+  photos,
+  prompts,
+  onUpload,
+  onPromptPhoto
+}: { 
+  settings: AdminSettings | null, 
+  users: UserProfile[], 
+  analytics: PromptAnalytic[], 
+  categories: Category[], 
+  announcements: Announcement[],
+  photos: Photo[],
+  prompts: PromptLibraryItem[],
+  onUpload: () => void,
+  onPromptPhoto: () => void
+}) {
+  const [activeSubTab, setActiveSubTab] = useState<'content' | 'users' | 'monetization' | 'seo'>('content');
+  const [newCategory, setNewCategory] = useState({ name: '', slug: '' });
+  const [newAnnouncement, setNewAnnouncement] = useState('');
+  const [localSettings, setLocalSettings] = useState<AdminSettings>(settings || {
+    adFrequency: 2,
+    activeAiLink: 'https://gemini.google.com',
+    seoTitle: 'VisionMaster - AI Vision Portal',
+    seoDescription: 'The ultimate AI transformation platform'
+  });
+
+  const handleUpdateRole = async (uid: string, role: 'isVendor' | 'isVerified' | 'status', value: any) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), { [role]: value });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `users/${uid}`);
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategory.name || !newCategory.slug) return;
+    try {
+      await addDoc(collection(db, 'categories'), { ...newCategory });
+      setNewCategory({ name: '', slug: '' });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'categories');
+    }
+  };
+
+  const handleAddAnnouncement = async () => {
+    if (!newAnnouncement) return;
+    try {
+      await addDoc(collection(db, 'announcements'), {
+        text: newAnnouncement,
+        createdAt: serverTimestamp(),
+        isActive: true
+      });
+      setNewAnnouncement('');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'announcements');
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'global'), localSettings);
+      alert("Settings saved successfully!");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'settings/global');
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black tracking-tight flex items-center gap-3">
+            <Settings className="text-amber-500" /> Control Center
+          </h2>
+          <p className="text-slate-500 text-sm font-medium">Platform orchestration & management</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={onPromptPhoto}
+            className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/30 px-3 sm:px-6 h-10 sm:h-12 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-emerald-600/20 transition-all shadow-lg active:scale-95"
+          >
+            <Sparkles size={18} /> <span>Prompt + Photo</span>
+          </button>
+          <button 
+            onClick={onUpload}
+            className="bg-indigo-600 text-white px-3 sm:px-8 h-10 sm:h-12 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg active:scale-95 shadow-indigo-600/20"
+          >
+            <Plus size={20} /> <span>+ Upload</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-2xl border border-slate-800 w-fit">
+        {(['content', 'users', 'monetization', 'seo'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveSubTab(tab)}
+            className={cn(
+              "px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all",
+              activeSubTab === tab ? "bg-white text-slate-950 shadow-lg" : "text-slate-500 hover:text-slate-300"
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        {/* Left Column: Detailed Management */}
+        <div className="md:col-span-8 space-y-8">
+          {activeSubTab === 'content' && (
+            <div className="space-y-8">
+              {/* Category Management */}
+              <div className="bento-card p-6">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Layout size={18} className="text-indigo-400" /> Categories</h3>
+                <div className="flex gap-3 mb-6">
+                  <input 
+                    type="text" value={newCategory.name} onChange={e => setNewCategory({...newCategory, name: e.target.value})}
+                    placeholder="Category Name" className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" 
+                  />
+                  <input 
+                    type="text" value={newCategory.slug} onChange={e => setNewCategory({...newCategory, slug: e.target.value})}
+                    placeholder="slug-name" className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" 
+                  />
+                  <button onClick={handleAddCategory} className="bg-indigo-600 px-6 py-2 rounded-xl text-xs font-bold hover:bg-indigo-500">Add</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map(c => (
+                    <div key={c.id} className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-[10px] font-bold flex items-center gap-2">
+                      <span className="text-slate-400">#</span> {c.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Announcement Management */}
+              <div className="bento-card p-6">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><MessageSquare size={18} className="text-emerald-400" /> Board</h3>
+                <div className="flex gap-3 mb-6">
+                  <input 
+                    type="text" value={newAnnouncement} onChange={e => setNewAnnouncement(e.target.value)}
+                    placeholder="Global Announcement Message..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" 
+                  />
+                  <button onClick={handleAddAnnouncement} className="bg-emerald-600 px-6 py-2 rounded-xl text-xs font-bold hover:bg-emerald-500">Post</button>
+                </div>
+                <div className="space-y-2">
+                  {announcements.map(a => (
+                    <div key={a.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between">
+                      <p className="text-xs font-medium text-slate-300">{a.text}</p>
+                      <button 
+                        onClick={() => updateDoc(doc(db, 'announcements', a.id), { isActive: false })}
+                        className="text-slate-500 hover:text-red-400 p-2"
+                      >
+                        <Ban size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prompt Analytics Card */}
+              <div className="bento-card p-6">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-blue-400" /> Analytics</h3>
+                <div className="space-y-4">
+                  {analytics.sort((a,b) => b.copyCount - a.copyCount).slice(0, 5).map(stat => (
+                    <div key={stat.id} className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Prompt ID: {stat.promptId.slice(0, 8)}...</span>
+                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-1 max-w-[200px]">
+                           <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, stat.copyCount * 2)}%` }}></div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                         <div className="text-lg font-black text-white">{stat.copyCount}</div>
+                         <div className="text-[8px] text-slate-500 font-bold uppercase">Copies</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === 'users' && (
+            <div className="bento-card p-6 overflow-x-auto">
+              <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Users size={18} className="text-purple-400" /> User Matrix</h3>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="text-[9px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800">
+                    <th className="pb-4 px-2">User</th>
+                    <th className="pb-4 px-2 text-center">Role</th>
+                    <th className="pb-4 px-2 text-center">Verify</th>
+                    <th className="pb-4 px-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {users.map(u => (
+                    <tr key={u.uid} className="hover:bg-white/[0.02]">
+                      <td className="py-4 px-2">
+                        <div className="flex items-center gap-3">
+                          <img src={u.photoURL || undefined} className="w-8 h-8 rounded-lg" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-200">{u.displayName}</span>
+                            <span className="text-[9px] text-slate-500">{u.email}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-2 text-center">
+                        <button 
+                          onClick={() => handleUpdateRole(u.uid, 'isVendor', !u.isVendor)}
+                          className={cn("px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all", 
+                            u.isVendor ? "bg-indigo-600/20 text-indigo-400 border-indigo-500/50" : "bg-slate-800 text-slate-500 border-slate-700"
+                          )}
+                        >
+                          {u.isVendor ? 'Vendor' : 'User'}
+                        </button>
+                      </td>
+                      <td className="py-4 px-2 text-center">
+                         <button 
+                          disabled={!u.isVendor}
+                          onClick={() => handleUpdateRole(u.uid, 'isVerified', !u.isVerified)}
+                          className={cn("p-2 rounded-lg transition-all", 
+                            u.isVerified ? "text-blue-400" : "text-slate-700 hover:text-slate-500"
+                          )}
+                        >
+                          <CheckCircle size={18} />
+                        </button>
+                      </td>
+                      <td className="py-4 px-2 text-center">
+                         <select 
+                           value={u.status || 'active'}
+                           onChange={(e) => handleUpdateRole(u.uid, 'status', e.target.value)}
+                           className={cn("bg-slate-900 border border-slate-800 text-[10px] font-bold rounded-lg px-2 py-1 outline-none",
+                             u.status === 'banned' ? "text-rose-500" : u.status === 'suspended' ? "text-amber-500" : "text-emerald-500"
+                           )}
+                         >
+                           <option value="active">Active</option>
+                           <option value="suspended">Suspended</option>
+                           <option value="banned">Banned</option>
+                         </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeSubTab === 'monetization' && (
+            <div className="bento-card p-8 space-y-8">
+              <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-rose-400" /> Revenue Stream</h3>
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Ad Frequency (Every N Items)</label>
+                  <div className="flex items-center gap-4">
+                    <input 
+                      type="range" min="1" max="10" step="1" 
+                      value={localSettings.adFrequency}
+                      onChange={e => setLocalSettings({...localSettings, adFrequency: parseInt(e.target.value)})}
+                      className="flex-1 accent-indigo-600"
+                    />
+                    <span className="text-xl font-black text-white w-8">{localSettings.adFrequency}</span>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Active AI Resource Link</label>
+                   <input 
+                     type="text" 
+                     value={localSettings.activeAiLink}
+                     onChange={e => setLocalSettings({...localSettings, activeAiLink: e.target.value})}
+                     placeholder="https://..."
+                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" 
+                   />
+                </div>
+              </div>
+              <button 
+                onClick={handleSaveSettings}
+                className="w-full py-4 bg-indigo-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:bg-indigo-500 transition-all"
+              >
+                Sync Configuration
+              </button>
+            </div>
+          )}
+
+          {activeSubTab === 'seo' && (
+            <div className="bento-card p-8 space-y-8">
+               <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Globe size={18} className="text-slate-400" /> SEO Management</h3>
+               <div className="space-y-6">
+                 <div>
+                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Meta Title</label>
+                   <input 
+                     type="text" 
+                     value={localSettings.seoTitle}
+                     onChange={e => setLocalSettings({...localSettings, seoTitle: e.target.value})}
+                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-bold" 
+                   />
+                 </div>
+                 <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Meta Description</label>
+                    <textarea 
+                      value={localSettings.seoDescription}
+                      onChange={e => setLocalSettings({...localSettings, seoDescription: e.target.value})}
+                      className="w-full h-32 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-medium resize-none" 
+                    />
+                 </div>
+                 <button 
+                  onClick={handleSaveSettings}
+                  className="w-full py-4 bg-white text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all shadow-xl"
+                >
+                  Update Global SEO
+                </button>
+               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Platform stats */}
+        <div className="md:col-span-4 space-y-6">
+          <div className="bento-card p-6 bg-indigo-600/10 border-indigo-500/20">
+             <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-6">Inventory Health</h4>
+             <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                   <span className="text-xs font-bold text-slate-300">Total Users</span>
+                   <span className="text-lg font-black text-white">{users.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                   <span className="text-xs font-bold text-slate-300">Vendors</span>
+                   <span className="text-lg font-black text-white">{users.filter(u => u.isVendor).length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                   <span className="text-xs font-bold text-slate-300">Live Gallery</span>
+                   <span className="text-lg font-black text-white">{photos.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                   <span className="text-xs font-bold text-slate-300">Prompt Library</span>
+                   <span className="text-lg font-black text-white">{prompts.length}</span>
+                </div>
+             </div>
+          </div>
+
+          <div className="bento-card p-6">
+             <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Security Actions</h4>
+             <div className="space-y-2">
+                <button className="w-full text-left p-3 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 flex items-center gap-3 group transition-all">
+                   <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                     <Ban size={14} />
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-white">Wipe Suspended Users</span>
+                      <span className="text-[8px] text-slate-500">Caution: Irreversible action</span>
+                   </div>
+                </button>
+                <button className="w-full text-left p-3 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 flex items-center gap-3 group transition-all">
+                   <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                     <Layout size={14} />
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-white">Reset Analytics</span>
+                      <span className="text-[8px] text-slate-500">Restore tracking points</span>
+                   </div>
+                </button>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Component: Upload Modal ---
-function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () => void, user: FirebaseUser | null }) {
-  const [uploadType, setUploadType] = useState<'transformation' | 'prompt-only' | null>(null);
-  const [step, setStep] = useState(0); // 0 is selection
-  const [category, setCategory] = useState<PhotoCategory | string>('human-restoration');
+function UploadModal({ 
+  isOpen, 
+  onClose, 
+  user,
+  categories,
+  initialType = null
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  user: FirebaseUser | null,
+  categories: Category[],
+  initialType?: 'transformation' | 'prompt-only' | 'single-image' | null
+}) {
+  const [uploadType, setUploadType] = useState<'transformation' | 'prompt-only' | 'single-image' | null>(initialType);
+  const [step, setStep] = useState(initialType ? 1 : 0); 
+
+  useEffect(() => {
+    if (isOpen) {
+      setUploadType(initialType);
+      setStep(initialType ? 1 : 0);
+    }
+  }, [isOpen, initialType]);
+  const [category, setCategory] = useState<string>('');
+
+  useEffect(() => {
+    if (categories.length > 0 && !category) {
+      setCategory(categories[0].slug);
+    }
+  }, [categories, category]);
   const [beforeFile, setBeforeFile] = useState<File | null>(null);
   const [afterFile, setAfterFile] = useState<File | null>(null);
   const [beforePreview, setBeforePreview] = useState<string>('');
@@ -844,15 +1530,17 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
   const handleUpload = async () => {
     if (!user) return;
 
-    if (uploadType === 'transformation') {
-      if (!beforePreview || !afterPreview || !prompt) return;
+    if (uploadType === 'transformation' || uploadType === 'single-image') {
+      const isTransformation = uploadType === 'transformation';
+      if ((isTransformation && !beforePreview) || !afterPreview || !prompt) return;
+      
       setIsUploading(true);
       try {
         await addDoc(collection(db, 'photos'), {
           userId: user.uid,
           userName: user.displayName || 'Anonymous',
           category,
-          beforePhotoUrl: beforePreview,
+          beforePhotoUrl: isTransformation ? beforePreview : '',
           afterPhotoUrl: afterPreview,
           masterPrompt: prompt,
           createdAt: serverTimestamp(),
@@ -895,7 +1583,7 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
     setAfterPreview('');
     setPrompt('');
     setPromptTitle('');
-    setCategory('human-restoration');
+    setCategory(categories[0]?.slug || '');
   };
 
   if (!isOpen) return null;
@@ -909,7 +1597,10 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
       >
         <div className="p-5 sm:p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 flex-shrink-0">
           <h2 className="text-xl sm:text-2xl font-black tracking-tighter">
-            {step === 0 ? "Share Your Work" : uploadType === 'transformation' ? "Transformation Details" : "Prompt Details"}
+            {step === 0 ? "Share Your Work" : 
+             uploadType === 'transformation' ? "Transformation Details" : 
+             uploadType === 'single-image' ? "Photo + Prompt Details" :
+             "Prompt Details"}
           </h2>
           <button onClick={resetAndClose} className="p-2 hover:bg-slate-800 rounded-full transition-all text-slate-400">
             <X size={18} />
@@ -918,30 +1609,43 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
         
         <div className="p-5 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto">
           {step === 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <button 
                 onClick={() => { setUploadType('transformation'); setStep(1); }}
-                className="flex flex-col items-center justify-center p-8 bg-slate-950 border border-slate-800 rounded-2xl hover:border-indigo-500 hover:bg-slate-900 transition-all group gap-4"
+                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-indigo-500 hover:bg-slate-900 transition-all group gap-3"
               >
-                <div className="w-16 h-16 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <ArrowRightLeft size={32} />
+                <div className="w-12 h-12 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                  <ArrowRightLeft size={24} />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-bold text-white mb-1">AI Transformation</div>
-                  <div className="text-[10px] text-slate-500 font-medium leading-tight">Before/After photos + Master Prompt</div>
+                  <div className="text-[11px] font-bold text-white mb-1">Restoration</div>
+                  <div className="text-[8px] text-slate-500 font-medium leading-tight">Before + After</div>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => { setUploadType('single-image'); setStep(1); }}
+                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-emerald-500 hover:bg-slate-900 transition-all group gap-3"
+              >
+                <div className="w-12 h-12 rounded-full bg-emerald-600/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  <Layout size={24} />
+                </div>
+                <div className="text-center">
+                  <div className="text-[11px] font-bold text-white mb-1">Photo + Prompt</div>
+                  <div className="text-[8px] text-slate-500 font-medium leading-tight">Single Image</div>
                 </div>
               </button>
 
               <button 
                 onClick={() => { setUploadType('prompt-only'); setStep(1); }}
-                className="flex flex-col items-center justify-center p-8 bg-slate-950 border border-slate-800 rounded-2xl hover:border-emerald-500 hover:bg-slate-900 transition-all group gap-4"
+                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-amber-500 hover:bg-slate-900 transition-all group gap-3"
               >
-                <div className="w-16 h-16 rounded-full bg-emerald-600/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                  <Sparkles size={32} />
+                <div className="w-12 h-12 rounded-full bg-amber-600/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-600 group-hover:text-white transition-all">
+                  <Sparkles size={24} />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-bold text-white mb-1">Master Prompt</div>
-                  <div className="text-[10px] text-slate-500 font-medium leading-tight">Share your precise AI generation prompt</div>
+                  <div className="text-[11px] font-bold text-white mb-1">Only Prompt</div>
+                  <div className="text-[8px] text-slate-500 font-medium leading-tight">Text Logic</div>
                 </div>
               </button>
             </div>
@@ -949,6 +1653,63 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
 
           {step === 1 && (
             <div className="space-y-6">
+              {uploadType === 'transformation' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Before</label>
+                    <div 
+                      onClick={() => document.getElementById('beforeUpload')?.click()}
+                      className="aspect-[4/5] bg-slate-950 border border-slate-800 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-indigo-500/50 transition-all overflow-hidden"
+                    >
+                      {beforePreview ? (
+                        <img src={beforePreview} className="w-full h-full object-cover" />
+                      ) : (
+                        <Plus className="text-slate-800" size={32} />
+                      )}
+                    </div>
+                    <input id="beforeUpload" type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'before')} />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">After</label>
+                    <div 
+                      onClick={() => document.getElementById('afterUpload')?.click()}
+                      className="aspect-[4/5] bg-slate-950 border border-slate-800 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-indigo-500/50 transition-all overflow-hidden"
+                    >
+                      {afterPreview ? (
+                        <img src={afterPreview} className="w-full h-full object-cover" />
+                      ) : (
+                        <Plus className="text-slate-800" size={32} />
+                      )}
+                    </div>
+                    <input id="afterUpload" type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'after')} />
+                  </div>
+                </div>
+              )}
+
+              {uploadType === 'single-image' && (
+                <div className="max-w-[280px] mx-auto space-y-3">
+                  <label className="block text-center text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Upload Photo</label>
+                  <div 
+                    onClick={() => document.getElementById('afterUpload')?.click()}
+                    className="aspect-[4/5] bg-slate-950 border border-slate-800 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-emerald-500/50 transition-all overflow-hidden"
+                  >
+                    {afterPreview ? (
+                      <img src={afterPreview} className="w-full h-full object-cover" />
+                    ) : (
+                      <Plus className="text-slate-800" size={40} />
+                    )}
+                  </div>
+                  <input id="afterUpload" type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'after')} />
+                </div>
+              )}
+
+              {uploadType === 'prompt-only' && (
+                <div className="bg-slate-950/50 border border-slate-800 border-dashed p-8 rounded-xl flex flex-col items-center justify-center gap-4">
+                  <MessageSquare size={32} className="text-slate-700" />
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entering text-only mode</p>
+                </div>
+              )}
+
               {uploadType === 'prompt-only' && (
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Prompt Title</label>
@@ -956,7 +1717,7 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
                     type="text"
                     value={promptTitle}
                     onChange={(e) => setPromptTitle(e.target.value)}
-                    placeholder="e.g. Master Architectural Restoration"
+                    placeholder="e.g. Architectural Restoration Master"
                     className="w-full p-4 bg-slate-950 rounded-xl border border-slate-800 focus:border-indigo-600 outline-none transition-all text-xs font-medium text-slate-300"
                   />
                 </div>
@@ -965,20 +1726,25 @@ function UploadModal({ isOpen, onClose, user }: { isOpen: boolean, onClose: () =
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Choose Category</label>
                 <div className="grid grid-cols-2 gap-3">
-                  {(['human-restoration', 'building-decoration', 'other'] as const).map(c => (
+                  {categories.map(c => (
                     <button 
-                      key={c}
-                      onClick={() => setCategory(c)}
+                      key={c.id}
+                      onClick={() => setCategory(c.slug)}
                       className={cn(
                         "py-3 px-6 rounded-xl border font-bold text-xs transition-all",
-                        category === c 
+                        category === c.slug 
                           ? "border-indigo-600 bg-indigo-600/10 text-indigo-400" 
                           : "border-slate-800 bg-slate-900 text-slate-500 hover:border-slate-700 hover:text-slate-300"
                       )}
                     >
-                      {c.replace('-', ' ')}
+                      {c.name}
                     </button>
                   ))}
+                  {categories.length === 0 && (
+                     <div className="col-span-2 p-4 text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-950 rounded-xl border border-dashed border-slate-800">
+                        Loading categories...
+                     </div>
+                  )}
                 </div>
               </div>
 

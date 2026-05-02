@@ -2,14 +2,17 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile with optional vendor details",
+      "description": "User profile with optional vendor details and interactions",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "displayName": { "type": "string" },
-        "photoURL": { "type": "string" },
-        "email": { "type": "string" },
-        "isVendor": { "type": "boolean" },
+        "uid": { "type": "string", "description": "Unique user ID matching auth.uid" },
+        "displayName": { "type": "string", "description": "Public name" },
+        "photoURL": { "type": "string", "description": "Avatar URL" },
+        "email": { "type": "string", "description": "User email (private info)" },
+        "isVendor": { "type": "boolean", "description": "Whether user is a service provider" },
+        "isVerified": { "type": "boolean", "description": "Whether vendor is verified" },
+        "status": { "type": "string", "enum": ["active", "suspended", "banned"] },
+        "likedPhotos": { "type": "array", "items": { "type": "string" }, "description": "IDs of photos liked" },
         "vendorProfile": {
           "type": "object",
           "properties": {
@@ -20,21 +23,21 @@
           }
         }
       },
-      "required": ["uid", "displayName"]
+      "required": ["uid", "displayName", "email"]
     },
     "Photo": {
       "title": "Photo",
       "description": "A community gallery item with before/after photos and master prompt",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
+        "userId": { "type": "string", "description": "Creator ID" },
+        "userName": { "type": "string", "description": "Creator display name" },
         "category": { "type": "string", "enum": ["human-restoration", "building-decoration", "other"] },
-        "beforePhotoUrl": { "type": "string" },
-        "afterPhotoUrl": { "type": "string" },
-        "masterPrompt": { "type": "string" },
+        "beforePhotoUrl": { "type": "string", "description": "Base64 or URL of before image" },
+        "afterPhotoUrl": { "type": "string", "description": "Base64 or URL of after image" },
+        "masterPrompt": { "type": "string", "description": "The AI prompt used" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "likesCount": { "type": "number" }
+        "likesCount": { "type": "number", "description": "Total likes accumulated" }
       },
       "required": ["userId", "category", "beforePhotoUrl", "afterPhotoUrl", "masterPrompt", "createdAt"]
     },
@@ -51,6 +54,49 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "prompt", "category"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Gallery categorization",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Global dashboard announcements",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["text", "createdAt", "isActive"]
+    },
+    "AdminSettings": {
+      "title": "AdminSettings",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "adFrequency": { "type": "number", "description": "Show ad every N prompts" },
+        "activeAiLink": { "type": "string" },
+        "seoTitle": { "type": "string" },
+        "seoDescription": { "type": "string" }
+      }
+    },
+    "PromptAnalytic": {
+      "title": "PromptAnalytic",
+      "description": "Usage tracking for prompts",
+      "type": "object",
+      "properties": {
+        "promptId": { "type": "string" },
+        "copyCount": { "type": "number" },
+        "lastCopiedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -65,6 +111,22 @@
     "/prompts/{promptId}": {
       "schema": "Prompt",
       "description": "Global prompt library"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Dynamic categories"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Global messages"
+    },
+    "/settings/{settingId}": {
+      "schema": "AdminSettings",
+      "description": "Global app config"
+    },
+    "/analytics/{analyticId}": {
+      "schema": "PromptAnalytic",
+      "description": "Usage stats"
     }
   }
 }
