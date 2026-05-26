@@ -62,5 +62,6 @@ export interface PromptLibraryItem {
   title: string;
   prompt: string;
   category: string;
+  imageUrl?: string;
   createdAt: any;
 }

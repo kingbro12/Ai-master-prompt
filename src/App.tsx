@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, ChangeEvent, Fragment, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent, FormEvent } from 'react';
 import { 
   Plus, 
+  PlusCircle,
+  Upload,
   Search, 
   Image as ImageIcon, 
   User, 
@@ -31,7 +33,8 @@ import {
   CheckCircle,
   Ban,
   TrendingUp,
-  Globe
+  Globe,
+  BookOpen
 } from 'lucide-react';
 import { 
   signInWithPopup, 
@@ -134,10 +137,12 @@ const AdMock = ({ size = 'rect' }: { size?: 'rect' | 'banner' | 'card' | 'row' }
 // --- Component: Video Ad Simulation ---
 const VideoAdModal = ({ isOpen, onClose, onComplete }: { isOpen: boolean, onClose: () => void, onComplete: () => void }) => {
   const [timeLeft, setTimeLeft] = useState(10);
+  const [canSkip, setCanSkip] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTimeLeft(10);
+      setCanSkip(false);
     }
   }, [isOpen]);
 
@@ -145,40 +150,98 @@ const VideoAdModal = ({ isOpen, onClose, onComplete }: { isOpen: boolean, onClos
     if (isOpen && timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
+    } else if (timeLeft === 0) {
+      setCanSkip(true);
     }
   }, [isOpen, timeLeft]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-4">
-      <div className="max-w-lg w-full bg-slate-900 rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-3 sm:p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-lg w-full bg-slate-900 rounded-[32px] overflow-hidden border border-white/10 shadow-2xl flex flex-col relative"
+      >
+        {/* Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors border border-white/5"
+        >
+          <X size={20} />
+        </button>
+
         <div className="relative aspect-video bg-black flex items-center justify-center flex-shrink-0">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full border-4 border-t-blue-500 border-white/10 animate-spin" />
-            <p className="text-white font-medium text-lg">Watching Video Ad...</p>
+            <motion.div 
+               animate={{ rotate: 360 }}
+               transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+               className="w-16 h-16 rounded-full border-4 border-t-indigo-500 border-white/10" 
+            />
+            <div className="text-center">
+              <p className="text-white font-black text-xl tracking-tight">Watching Ad...</p>
+              <p className="text-indigo-400 font-bold text-xs mt-1 uppercase tracking-widest">{timeLeft}s remaining</p>
+            </div>
           </div>
-          <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-white text-sm">
-            {timeLeft}s
-          </div>
+          
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none" />
         </div>
-        <div className="p-6">
-          <h3 className="text-xl font-bold text-white mb-2">Almost there!</h3>
-          <p className="text-gray-400 text-sm mb-6">
-            Continue to Auto-Copy & Open Gemini.
+
+        <div className="p-8 pb-10 text-center">
+          <div className="flex items-center justify-center gap-2 mb-4">
+             <div className="w-1 h-3 bg-indigo-500 rounded-full" />
+             <h3 className="text-2xl font-black text-white tracking-tight uppercase italic">Fast-Track Unlock</h3>
+          </div>
+          <p className="text-slate-400 text-sm mb-10 font-medium leading-relaxed max-w-[80%] mx-auto">
+            Support the community by watching this short ad to reveal the master prompt for free.
           </p>
-          <button 
-            disabled={timeLeft > 0}
-            onClick={() => {
-              onComplete();
-              onClose();
-            }}
-            className="w-full py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white text-black hover:bg-gray-200"
-          >
-            {timeLeft > 0 ? "Watch to continue" : "Continue"}
-          </button>
+          
+          <AnimatePresence mode="wait">
+            {!canSkip ? (
+              <motion.div 
+                key="timer"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="w-full bg-slate-800 rounded-2xl py-4 flex items-center justify-center gap-3 border border-slate-700 opacity-50"
+              >
+                <div className="w-4 h-4 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Unlocking soon... ({timeLeft}s)</span>
+              </motion.div>
+            ) : (
+              <motion.button 
+                key="action"
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{ 
+                  opacity: 1, 
+                  y: 0, 
+                  scale: 1,
+                  boxShadow: [
+                    "0 0 0 rgba(79, 70, 229, 0)",
+                    "0 0 20px rgba(79, 70, 229, 0.4)",
+                    "0 0 0 rgba(79, 70, 229, 0)"
+                  ]
+                }}
+                transition={{
+                  scale: { type: "spring", stiffness: 400, damping: 25 },
+                  boxShadow: { repeat: Infinity, duration: 2 }
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  onComplete();
+                  onClose();
+                }}
+                className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-3 group"
+              >
+                <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
+                Copy Prompt Free
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };
@@ -270,26 +333,39 @@ const AdCard = () => (
     </div>
     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sponsored</p>
     <h3 className="text-sm font-bold text-slate-300 text-center mb-4">Space for Advertisement</h3>
-    <button className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline underline-offset-4">Learn More</button>
   </div>
 );
 
 // --- Component: Photo Card ---
-const PhotoCard = ({ photo, onAction, isLiked, categories, canDelete }: { photo: Photo, onAction: (p: Photo, action: 'prompt' | 'like' | 'share' | 'delete') => void, isLiked: boolean, categories: Category[], canDelete?: boolean }) => {
+const PhotoCard = ({ photo, onAction, isLiked, categories, canDelete, onTrackInterest }: { photo: Photo, onAction: (p: Photo, action: 'prompt' | 'like' | 'share' | 'delete') => void, isLiked: boolean, categories: Category[], canDelete?: boolean, onTrackInterest?: (cat: string, score: number) => void }) => {
   const categoryName = categories.find(c => c.slug === photo.category)?.name || photo.category.replace('-', ' ');
   const [showMenu, setShowMenu] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = () => {
+    if (onTrackInterest) {
+      hoverTimerRef.current = setTimeout(() => {
+        onTrackInterest(photo.category, 1);
+      }, 1200);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
   
   return (
-    <div className="bento-card group flex flex-col overflow-hidden relative">
+    <div 
+      onMouseEnter={handleMouseEnter} 
+      onMouseLeave={handleMouseLeave}
+      className="bento-card group flex flex-col overflow-hidden relative"
+    >
       <div className="relative overflow-hidden aspect-[4/5] bg-slate-950">
         <BeforeAfterSlider before={photo.beforePhotoUrl} after={photo.afterPhotoUrl} />
         
-        <div className="absolute top-4 left-4 z-20 pointer-events-none">
-          <span className="text-slate-400 text-[9px] font-bold backdrop-blur-md px-2 py-1 rounded-md bg-slate-950/40 uppercase tracking-widest border border-white/10">
-            {categoryName}
-          </span>
-        </div>
-
         {/* Dropdown Menu Toggle */}
         <div className="absolute top-4 right-4 z-30">
           <button 
@@ -370,10 +446,14 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [activeTab, setActiveTab] = useState<'gallery' | 'prompts' | 'admin'>('gallery');
+  const [activeTab, setActiveTab] = useState<'gallery' | 'prompts' | 'admin' | 'ai-gallery'>('gallery');
   const [categoryFilter, setCategoryFilter] = useState<PhotoCategory | string>('all');
+  const [aiCatFilter, setAiCatFilter] = useState<string>('all');
+  const [aiSortBy, setAiSortBy] = useState<'newest' | 'popular'>('newest');
+  const [copiedPhotoId, setCopiedPhotoId] = useState<string | null>(null);
   const [isAdminVerified, setIsAdminVerified] = useState(false);
-  const [initialUploadType, setInitialUploadType] = useState<'transformation' | 'prompt-only' | 'single-image' | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [initialUploadType, setInitialUploadType] = useState<'transformation' | 'prompt-only' | 'single-image' | 'prompt-library' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [prompts, setPrompts] = useState<PromptLibraryItem[]>([]);
@@ -383,6 +463,30 @@ export default function App() {
   const [analytics, setAnalytics] = useState<PromptAnalytic[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   
+  const [viewInterests, setViewInterests] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('prompta_interests');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const trackInterest = (categorySlug: string, score: number = 1) => {
+    if (!categorySlug) return;
+    setViewInterests(prev => {
+      const current = prev[categorySlug] || 0;
+      const updated = { ...prev, [categorySlug]: current + score };
+      localStorage.setItem('prompta_interests', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearInterests = () => {
+    setViewInterests({});
+    localStorage.removeItem('prompta_interests');
+  };
+  
   const isSystemAdmin = user?.email === 'ab.abrojeho76@gmail.com';
   
   // Modals
@@ -391,6 +495,12 @@ export default function App() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ photo?: Photo, type: string, data?: string } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
+
+  const showSuccessToast = (message: string) => {
+    setToast({ message, type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Auth Effect
   useEffect(() => {
@@ -432,9 +542,7 @@ export default function App() {
   // Data Effects
   useEffect(() => {
     // Photos
-    const photosQuery = categoryFilter === 'all' 
-      ? query(collection(db, 'photos'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'photos'), where('category', '==', categoryFilter), orderBy('createdAt', 'desc'));
+    const photosQuery = query(collection(db, 'photos'), orderBy('createdAt', 'desc'));
     
     const unsubPhotos = onSnapshot(photosQuery, (snapshot) => {
       setPhotos(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Photo)));
@@ -502,7 +610,7 @@ export default function App() {
       unsubAnalytics();
       unsubAllUsers();
     };
-  }, [categoryFilter]);
+  }, []);
 
   // SEO Effect
   useEffect(() => {
@@ -553,6 +661,8 @@ export default function App() {
         const photoRef = doc(db, 'photos', photo.id);
         const userRef = doc(db, 'users', user.uid);
 
+        trackInterest(photo.category, 5);
+
         await updateDoc(photoRef, {
           likesCount: increment(1)
         });
@@ -574,8 +684,9 @@ export default function App() {
     }
 
     if (type === 'share') {
+      trackInterest(photo.category, 2);
       const shareData = {
-        title: 'Check out this AI Transformation on VisionMaster!',
+        title: 'Check out this AI Transformation on Prompta!',
         text: `Behold this ${photo.category} transformation by ${photo.userName}. Master Prompt available!`,
         url: window.location.href,
       };
@@ -613,7 +724,9 @@ export default function App() {
     if (!pendingAction) return;
 
     if (pendingAction.type === 'prompt' && pendingAction.photo) {
+      trackInterest(pendingAction.photo.category, 3);
       copyToClipboard(pendingAction.photo.masterPrompt);
+      showSuccessToast("Master prompt copied successfully!");
       // Log analytic
       updateDoc(doc(db, 'analytics', pendingAction.photo.id), {
          promptId: pendingAction.photo.id,
@@ -627,24 +740,72 @@ export default function App() {
            lastCopiedAt: serverTimestamp()
         });
       });
-      window.open(adminSettings?.activeAiLink || 'https://gemini.google.com/', '_blank');
     } else if (pendingAction.type === 'libraryPrompt' && pendingAction.data) {
        copyToClipboard(pendingAction.data);
-       window.open(adminSettings?.activeAiLink || 'https://gemini.google.com/', '_blank');
+       showSuccessToast("Library prompt copied successfully!");
     }
     setPendingAction(null);
   };
 
-  const filteredPhotos = photos.filter(p => 
-    p.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.masterPrompt.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPhotos = photos.filter(p => {
+    if (p.isAiGallery || !p.beforePhotoUrl) return false;
+
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    const catName = categories.find(c => c.slug === p.category)?.name || '';
+    return (
+      p.userName.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q) ||
+      catName.toLowerCase().includes(q) ||
+      p.masterPrompt.toLowerCase().includes(q)
+    );
+  });
 
   const filteredPrompts = prompts.filter(p => 
     p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.prompt.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Computed values for personalized recommendations
+  const hasInterests = Object.values(viewInterests).some(val => (val as number) > 0);
+  
+  const sortedInterestingCategories = Object.entries(viewInterests)
+    .filter(([_, score]) => (score as number) > 0)
+    .sort((a, b) => (b[1] as number) - (a[1] as number))
+    .map(([catSlug]) => catSlug);
+
+  const favoriteCatSlug = sortedInterestingCategories[0] || '';
+  const favoriteCatName = categories.find(c => c.slug === favoriteCatSlug)?.name || favoriteCatSlug.replace('-', ' ');
+
+  // Trending default (ranked by likes count or descending order)
+  const popularPhotos = [...photos]
+    .filter(p => !p.isAiGallery && p.beforePhotoUrl)
+    .sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0))
+    .slice(0, 5);
+
+  const recommendedPhotos = hasInterests
+    ? photos
+        .filter(p => !p.isAiGallery && p.beforePhotoUrl && sortedInterestingCategories.includes(p.category))
+        .sort((a, b) => {
+          const scoreA = viewInterests[a.category] || 0;
+          const scoreB = viewInterests[b.category] || 0;
+          if (scoreB !== scoreA) {
+            return scoreB - scoreA;
+          }
+          return (b.likesCount || 0) - (a.likesCount || 0); // fallback to trending inside interest group
+        })
+        .slice(0, 5)
+    : popularPhotos;
+
+  let recommendedPhotosCombined = [...recommendedPhotos];
+  if (recommendedPhotosCombined.length < 5) {
+    for (const pop of popularPhotos) {
+      if (!recommendedPhotosCombined.some(r => r.id === pop.id)) {
+        recommendedPhotosCombined.push(pop);
+      }
+      if (recommendedPhotosCombined.length >= 5) break;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
@@ -655,8 +816,8 @@ export default function App() {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20 flex-shrink-0">
               <Sparkles size={18} />
             </div>
-            <span className="text-lg font-bold tracking-tight">
-              Vision<span className="text-indigo-400">Master</span>
+            <span className="text-xl font-black tracking-tighter uppercase">
+              Prompt<span className="text-indigo-400">a</span>
             </span>
           </div>
 
@@ -669,7 +830,7 @@ export default function App() {
                   activeTab === 'gallery' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
                 )}
               >
-                Community Gallery
+                ReImagine
               </button>
               <button 
                 onClick={() => setActiveTab('prompts')}
@@ -678,7 +839,16 @@ export default function App() {
                   activeTab === 'prompts' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
                 )}
               >
-                Prompt Library
+                Prompt Hub
+              </button>
+              <button 
+                onClick={() => setActiveTab('ai-gallery')}
+                className={cn(
+                  "px-4 py-2 rounded-full text-[10px] font-bold transition-all",
+                  activeTab === 'ai-gallery' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                AI Gallery
               </button>
               {(isSystemAdmin || isAdminVerified) && (
                 <button 
@@ -701,16 +871,13 @@ export default function App() {
               )}
             </div>
 
-            <div className="relative group">
-              <input 
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search vision..."
-                className="w-32 sm:w-40 h-9 pl-9 pr-4 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-medium text-slate-300 focus:w-48 focus:border-indigo-500 outline-none transition-all"
-              />
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            </div>
+            {/* Hamburger Button (Mobile) */}
+            <button 
+              onClick={() => setIsMenuOpen(true)}
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
+            >
+              <Menu size={20} />
+            </button>
 
             {user ? (
               <div className="flex items-center gap-2">
@@ -734,6 +901,94 @@ export default function App() {
           </div>
         </div>
       </nav>
+      
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0, x: '100%' }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed inset-0 z-[110] bg-slate-950 p-6 flex flex-col md:hidden"
+          >
+            <div className="flex items-center justify-between mb-12">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center">
+                  <Sparkles size={18} className="text-white" />
+                </div>
+                <h1 className="text-xl font-black tracking-tighter text-white uppercase">PROMPT<span className="text-indigo-400">A</span></h1>
+              </div>
+              <button 
+                onClick={() => setIsMenuOpen(false)}
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <nav className="flex flex-col gap-4">
+              <button 
+                onClick={() => { setActiveTab('gallery'); setIsMenuOpen(false); }}
+                className={cn(
+                  "w-full p-5 rounded-2xl flex items-center gap-4 text-sm font-bold transition-all",
+                  activeTab === 'gallery' ? "bg-indigo-600 text-white" : "bg-slate-900 text-slate-400 border border-slate-800"
+                )}
+              >
+                <ArrowRightLeft size={20} /> ReImagine
+              </button>
+              <button 
+                onClick={() => { setActiveTab('prompts'); setIsMenuOpen(false); }}
+                className={cn(
+                  "w-full p-5 rounded-2xl flex items-center gap-4 text-sm font-bold transition-all",
+                  activeTab === 'prompts' ? "bg-indigo-600 text-white" : "bg-slate-900 text-slate-400 border border-slate-800"
+                )}
+              >
+                <Sparkles size={20} /> Prompt Hub
+              </button>
+              <button 
+                onClick={() => { setActiveTab('ai-gallery'); setIsMenuOpen(false); }}
+                className={cn(
+                  "w-full p-5 rounded-2xl flex items-center gap-4 text-sm font-bold transition-all",
+                  activeTab === 'ai-gallery' ? "bg-indigo-600 text-white" : "bg-slate-900 text-slate-400 border border-slate-800"
+                )}
+              >
+                <ImageIcon size={20} /> AI Gallery
+              </button>
+              {(isSystemAdmin || isAdminVerified) ? (
+                <button 
+                  onClick={() => { setActiveTab('admin'); setIsMenuOpen(false); }}
+                  className={cn(
+                    "w-full p-5 rounded-2xl flex items-center gap-4 text-sm font-bold transition-all",
+                    activeTab === 'admin' ? "bg-amber-500 text-slate-950" : "bg-slate-900 text-slate-400 border border-slate-800"
+                  )}
+                >
+                  <Settings size={20} /> Admin Panel
+                </button>
+              ) : (
+                <button 
+                  onClick={() => { setShowPasswordModal(true); setIsMenuOpen(false); }}
+                  className="w-full p-5 rounded-2xl flex items-center gap-4 text-sm font-bold bg-slate-900 border border-slate-800 text-slate-400"
+                >
+                  <Settings size={20} /> Admin Access
+                </button>
+              )}
+            </nav>
+
+            <div className="mt-auto p-6 bg-slate-900/50 rounded-3xl border border-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                  <User size={20} />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-sm font-bold text-white truncate">{user?.displayName || 'Guest Artist'}</p>
+                  <p className="text-[10px] text-slate-500 font-medium truncate">{user?.email || 'Login for full access'}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hero Section */}
       <section className="relative pt-12 pb-10 px-6 overflow-hidden">
@@ -758,27 +1013,56 @@ export default function App() {
           >
             <Sparkles size={12} /> AI Vision Portal
           </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white max-w-4xl mx-auto mb-8 leading-tight px-4"
+          >
+            <span className="bg-gradient-to-r from-teal-400 via-emerald-400 to-green-400 bg-clip-text text-transparent">AI restoration</span>,{" "}
+            <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-pink-500 bg-clip-text text-transparent">redesigns</span>,{" "}
+            <span className="bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 bg-clip-text text-transparent">prompts</span>, and{" "}
+            <span className="bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-400 bg-clip-text text-transparent">inspiring AI galleries</span>{" "}
+            <span className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-amber-400 bg-clip-text text-transparent font-extrabold tracking-wide drop-shadow-[0_4px_8px_rgba(244,63,94,0.5)]">— all in one place.</span>
+          </motion.h1>
           
-          <div className="flex flex-wrap gap-4 justify-center">
+          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3 sm:gap-4 max-w-xl md:max-w-none mx-auto justify-center px-2">
             <button 
               onClick={() => setActiveTab('gallery')}
               className={cn(
-                "px-8 py-4 rounded-2xl font-bold text-sm transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-3",
+                "px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3",
                 activeTab === 'gallery' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
               )}
             >
-              <ArrowRightLeft size={20} />
-              Explore Community Gallery
+              <ArrowRightLeft size={18} className="sm:w-5 sm:h-5" />
+              ReImagine
             </button>
             <button 
               onClick={() => setActiveTab('prompts')}
               className={cn(
-                "px-8 py-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3",
+                "px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3",
                 activeTab === 'prompts' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
               )}
             >
-              <Sparkles size={20} />
-              Access Prompt Library
+              <Sparkles size={18} className="sm:w-5 sm:h-5" />
+              Prompt Hub
+            </button>
+            <button 
+              onClick={() => setActiveTab('ai-gallery')}
+              className={cn(
+                "px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3",
+                activeTab === 'ai-gallery' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
+              )}
+            >
+              <ImageIcon size={18} className="sm:w-5 sm:h-5" />
+              AI Gallery
+            </button>
+            <button 
+              disabled
+              className="px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl font-medium text-[10px] sm:text-xs transition-all bg-slate-950/20 text-slate-500 border border-slate-900/50 cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <span>( New feature coming soon )</span>
             </button>
           </div>
         </div>
@@ -792,34 +1076,43 @@ export default function App() {
         {/* Gallery View */}
         {activeTab === 'gallery' && (
           <div className="space-y-8">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar w-full md:w-auto">
-                <button
-                  onClick={() => setCategoryFilter('all')}
-                  className={cn(
-                    "px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border",
-                    categoryFilter === 'all' 
-                      ? "bg-indigo-600/10 text-indigo-400 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
-                      : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-700 hover:text-slate-300"
-                  )}
-                >
-                  <Filter size={12} />
-                  <span>All Items</span>
-                </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setCategoryFilter(cat.slug)}
-                    className={cn(
-                      "px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border",
-                      categoryFilter === cat.slug 
-                        ? "bg-indigo-600/10 text-indigo-400 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
-                        : "bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-700 hover:text-slate-300"
-                    )}
-                  >
-                    <span className="capitalize">{cat.name}</span>
-                  </button>
-                ))}
+            {/* Smart Search Bar & Interest-Based Recommendation System (Replaces Component Categories Section per CSS target) */}
+            <div className="space-y-6">
+              <div className="bg-slate-900/40 p-6 rounded-3xl flex flex-col gap-4 relative overflow-hidden backdrop-blur-xl group">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 via-transparent to-transparent opacity-50 pointer-events-none" />
+                
+                <div className="flex gap-4 items-center relative z-10 w-full justify-start">
+                  <div className="w-full max-w-md flex gap-2 items-center">
+                    <div className="flex-1 relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors">
+                        <Search size={18} />
+                      </span>
+                      <input
+                        type="text"
+                        id="smartImageSearch"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search photos, artists, or prompts..."
+                        className="w-full pl-11 pr-10 py-3 bg-slate-950 border border-slate-850 rounded-2xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 text-xs sm:text-sm font-medium transition-all"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-md transition-all"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs uppercase tracking-wider rounded-2xl transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)] whitespace-nowrap flex items-center gap-1.5"
+                    >
+                      <Search size={14} />
+                      <span>Search</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -835,6 +1128,7 @@ export default function App() {
                       isLiked={profile?.likedPhotos?.includes(photo.id) || false} 
                       categories={categories}
                       canDelete={isSystemAdmin || photo.userId === user?.uid}
+                      onTrackInterest={trackInterest}
                     />
                   </div>
                   {/* Inject Ad Card based on admin settings */}
@@ -855,38 +1149,120 @@ export default function App() {
             </div>
             <AdMock size="banner" />
           </div>
-        )}        {/* Prompts Library */}
+        )}
+
+        {/* AI Gallery - Curated Masterpieces Showcase */}
+        {activeTab === 'ai-gallery' && (
+          <div className="space-y-8 animate-fade-in">
+            {/* Header intro panel */}
+            <div className="relative rounded-3xl overflow-hidden border border-slate-800/80 bg-slate-900/30 backdrop-blur-xl p-8 sm:p-12 mb-4">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none" />
+              <div className="relative z-10 max-w-2xl">
+                <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none mb-6">
+                  AI Art Showcase
+                </h2>
+
+              </div>
+            </div>
+
+            {/* AI Gallery Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+              {photos
+                .filter(p => {
+                  if (!p.isAiGallery) return false;
+
+                  const q = searchQuery.toLowerCase().trim();
+                  return !q || (
+                    p.userName.toLowerCase().includes(q) ||
+                    p.category.toLowerCase().includes(q) ||
+                    p.masterPrompt.toLowerCase().includes(q)
+                  );
+                })
+                .sort((a, b) => {
+                  const aTime = a.createdAt?.seconds || 0;
+                  const bTime = b.createdAt?.seconds || 0;
+                  return bTime - aTime;
+                })
+                .map((photo) => {
+                  const categoryName = categories.find(c => c.slug === photo.category)?.name || photo.category.replace('-', ' ');
+
+                  return (
+                    <motion.div
+                      key={`ai-gal-${photo.id}`}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="relative bg-slate-900/40 border border-slate-850 rounded-2xl overflow-hidden group hover:shadow-2xl hover:shadow-indigo-500/5 hover:border-slate-800 transition-all duration-300"
+                    >
+                      {/* Final output view */}
+                      <div className="relative aspect-square overflow-hidden bg-slate-950">
+                        <img
+                          src={photo.afterPhotoUrl}
+                          alt="AI Artwork"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    </motion.div>
+                  );
+                })}
+
+              {photos.filter(p => p.isAiGallery).length === 0 && (
+                <div className="col-span-full py-24 flex flex-col items-center justify-center text-slate-500 bg-slate-900/50 rounded-2xl border border-dashed border-slate-850">
+                  <ImageIcon size={40} className="mb-3 opacity-40 text-slate-400" />
+                  <p className="text-base font-bold text-slate-300">No masterpieces found</p>
+                  <p className="text-xs mt-1 text-slate-550">Upload your masterpiece using the upload button above!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Prompts Library */}
         {activeTab === 'prompts' && (
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="bento-card p-12 mb-12 text-center bg-gradient-to-br from-slate-900 to-slate-950">
               <h2 className="text-3xl font-black mb-4 tracking-tighter">Master Prompt Library</h2>
             </div>
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredPrompts.map((p, idx) => (
-                <div key={p.id} className="flex flex-col gap-4">
-                  <div className="bento-card p-5 group flex items-center justify-between hover:bg-slate-800/40">
-                    <div className="flex flex-col gap-1 overflow-hidden">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
-                        {p.category}
-                      </span>
-                      <h3 className="font-bold text-slate-200 text-sm tracking-tight truncate">{p.title}</h3>
-                      <p className="text-[10px] text-slate-500 font-mono truncate max-w-[200px] sm:max-w-xs italic">{p.prompt}</p>
+                <Fragment key={p.id}>
+                  <div className="bento-card p-4 group flex items-start gap-4 hover:bg-slate-800/40 h-fit">
+                    {p.imageUrl && (
+                      <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-slate-950 border border-slate-800">
+                        <img src={p.imageUrl} className="w-full h-full object-cover" alt={p.title} />
+                      </div>
+                    )}
+                    <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+                      <h3 className="font-bold text-slate-200 text-sm tracking-tight truncate leading-tight">{p.title}</h3>
+                      <p className="text-[10px] text-slate-500 font-mono line-clamp-2 italic mb-3">{p.prompt}</p>
+                      
+                      <button 
+                        onClick={() => { 
+                          setPendingAction({ type: 'libraryPrompt', data: p.prompt }); 
+                          setShowAdModal(true); 
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-slate-800 text-slate-200 rounded-lg font-bold hover:bg-indigo-600 hover:text-white transition-all text-[9px] border border-slate-700 active:scale-95 group-hover:border-indigo-500"
+                      >
+                        <Copy size={12} /> <span>Copy Master Prompt</span>
+                      </button>
                     </div>
-                    <button 
-                      onClick={() => { 
-                        setPendingAction({ type: 'libraryPrompt', data: p.prompt }); 
-                        setShowAdModal(true); 
-                      }}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 text-slate-200 rounded-xl font-bold hover:bg-indigo-600 hover:text-white transition-all text-[10px] border border-slate-700 active:scale-95 shadow-lg group-hover:border-indigo-500 flex-shrink-0"
-                    >
-                      <Copy size={14} /> Copy Master Prompt
-                    </button>
                   </div>
-                  {/* Google Adsense mock every 3 items - now same size as prompt labels */}
-                  {(idx + 1) % 3 === 0 && (
-                    <AdMock size="row" />
+                  {/* Google Adsense mock every 4 items - matches card size */}
+                  {(idx + 1) % 4 === 0 && (
+                    <div className="bento-card p-4 flex flex-col items-center justify-center gap-2 h-full min-h-[160px] bg-slate-900/60 transition-all hover:bg-slate-800/40 border-dashed group">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600/20 group-hover:text-indigo-400 transition-all">
+                        <Globe size={20} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sponsored</p>
+                        <h3 className="text-xs font-bold text-slate-300">Space for Advertisement</h3>
+                      </div>
+                      <div className="w-full h-1 bg-slate-800 mt-2 rounded overflow-hidden">
+                        <div className="w-1/3 h-full bg-indigo-600/30"></div>
+                      </div>
+                    </div>
                   )}
-                </div>
+                </Fragment>
               ))}
             </div>
           </div>
@@ -940,6 +1316,21 @@ export default function App() {
         onSave={(p) => setProfile(p)}
       />
 
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 bg-indigo-600 text-white rounded-2xl shadow-2xl flex items-center gap-3 border border-indigo-400"
+          >
+            <CheckCircle size={18} />
+            <span className="text-xs font-black uppercase tracking-widest">{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Footer */}
       <footer className="bg-slate-950 border-t border-slate-900 pt-20 pb-12">
         <div className="max-w-7xl mx-auto px-6">
@@ -949,19 +1340,12 @@ export default function App() {
                   <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
                     <Sparkles size={16} />
                   </div>
-                  <span className="text-lg font-bold tracking-tight">VisionMaster</span>
+                  <span className="text-lg font-bold tracking-tight">Prompta</span>
                 </div>
                 <p className="text-slate-500 text-xs font-medium leading-relaxed">
                   The intersection of AI creativity and professional restoration. We connect visionaries with the world's best AI artists.
                 </p>
-                <div className="flex gap-4">
-                   <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 transition-colors cursor-pointer">
-                      <Search size={16} />
-                   </div>
-                   <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 transition-colors cursor-pointer">
-                      <MapPin size={16} />
-                   </div>
-                </div>
+
              </div>
 
              <div className="md:col-span-4 flex flex-col items-center md:items-start">
@@ -989,8 +1373,9 @@ export default function App() {
                 <div className="space-y-4">
                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Navigation</div>
                    <ul className="space-y-2 text-xs font-bold text-slate-500">
-                      <li><button onClick={() => setActiveTab('gallery')} className="hover:text-indigo-400">Gallery</button></li>
-                      <li><button onClick={() => setActiveTab('prompts')} className="hover:text-indigo-400">Prompts</button></li>
+                      <li><button onClick={() => setActiveTab('gallery')} className="hover:text-indigo-400">ReImagine</button></li>
+                      <li><button onClick={() => setActiveTab('prompts')} className="hover:text-indigo-400">Prompt Hub</button></li>
+                      <li><button onClick={() => setActiveTab('ai-gallery')} className="hover:text-indigo-400">AI Gallery</button></li>
                    </ul>
                 </div>
                 <div className="space-y-4">
@@ -1009,7 +1394,7 @@ export default function App() {
                SYSTEMS OPERATIONAL
             </div>
             <div>
-              © 2026 AI VISIONMASTER PLATFORM • BUILT FOR ARTISTS
+              © 2026 PROMPTA PLATFORM • BUILT FOR ARTISTS
             </div>
           </div>
         </div>
@@ -1127,7 +1512,7 @@ function AdminDashboard({
   const [localSettings, setLocalSettings] = useState<AdminSettings>(settings || {
     adFrequency: 2,
     activeAiLink: 'https://gemini.google.com',
-    seoTitle: 'VisionMaster - AI Vision Portal',
+    seoTitle: 'Prompta - AI Vision Portal',
     seoDescription: 'The ultimate AI transformation platform'
   });
 
@@ -1146,6 +1531,15 @@ function AdminDashboard({
       setNewCategory({ name: '', slug: '' });
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'categories');
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!window.confirm("Delete this category? This won't delete photos in it, but they will lose their category tag.")) return;
+    try {
+      await deleteDoc(doc(db, 'categories', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `categories/${id}`);
     }
   };
 
@@ -1183,16 +1577,10 @@ function AdminDashboard({
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={onPromptPhoto}
-            className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/30 px-3 sm:px-6 h-10 sm:h-12 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-emerald-600/20 transition-all shadow-lg active:scale-95"
-          >
-            <Sparkles size={18} /> <span>Prompt + Photo</span>
-          </button>
-          <button 
             onClick={onUpload}
-            className="bg-indigo-600 text-white px-3 sm:px-8 h-10 sm:h-12 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-indigo-500 transition-all shadow-lg active:scale-95 shadow-indigo-600/20"
+            className="bg-slate-900 text-slate-200 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800 hover:text-white px-4 sm:px-6 h-10 sm:h-12 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-600/5"
           >
-            <Plus size={20} /> <span>+ Upload</span>
+            <Upload size={16} className="text-indigo-400" /> <span>Upload</span>
           </button>
         </div>
       </div>
@@ -1217,29 +1605,6 @@ function AdminDashboard({
         <div className="md:col-span-8 space-y-8">
           {activeSubTab === 'content' && (
             <div className="space-y-8">
-              {/* Category Management */}
-              <div className="bento-card p-6">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Layout size={18} className="text-indigo-400" /> Categories</h3>
-                <div className="flex gap-3 mb-6">
-                  <input 
-                    type="text" value={newCategory.name} onChange={e => setNewCategory({...newCategory, name: e.target.value})}
-                    placeholder="Category Name" className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" 
-                  />
-                  <input 
-                    type="text" value={newCategory.slug} onChange={e => setNewCategory({...newCategory, slug: e.target.value})}
-                    placeholder="slug-name" className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" 
-                  />
-                  <button onClick={handleAddCategory} className="bg-indigo-600 px-6 py-2 rounded-xl text-xs font-bold hover:bg-indigo-500">Add</button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {categories.map(c => (
-                    <div key={c.id} className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-[10px] font-bold flex items-center gap-2">
-                      <span className="text-slate-400">#</span> {c.name}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* Announcement Management */}
               <div className="bento-card p-6">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><MessageSquare size={18} className="text-emerald-400" /> Board</h3>
@@ -1486,9 +1851,9 @@ function UploadModal({
   onClose: () => void, 
   user: FirebaseUser | null,
   categories: Category[],
-  initialType?: 'transformation' | 'prompt-only' | 'single-image' | null
+  initialType?: 'transformation' | 'prompt-only' | 'single-image' | 'prompt-library' | null
 }) {
-  const [uploadType, setUploadType] = useState<'transformation' | 'prompt-only' | 'single-image' | null>(initialType);
+  const [uploadType, setUploadType] = useState<'transformation' | 'prompt-only' | 'single-image' | 'prompt-library' | null>(initialType);
   const [step, setStep] = useState(initialType ? 1 : 0); 
 
   useEffect(() => {
@@ -1544,7 +1909,8 @@ function UploadModal({
           afterPhotoUrl: afterPreview,
           masterPrompt: prompt,
           createdAt: serverTimestamp(),
-          likesCount: 0
+          likesCount: 0,
+          isAiGallery: !isTransformation
         });
         resetAndClose();
       } catch (e) {
@@ -1552,7 +1918,7 @@ function UploadModal({
       } finally {
         setIsUploading(false);
       }
-    } else if (uploadType === 'prompt-only') {
+    } else if (uploadType === 'prompt-only' || uploadType === 'prompt-library') {
       if (!prompt || !promptTitle) return;
       setIsUploading(true);
       try {
@@ -1561,6 +1927,7 @@ function UploadModal({
           userName: user.displayName || 'Anonymous',
           title: promptTitle,
           prompt: prompt,
+          imageUrl: afterPreview || '', // Optional photo for prompt library
           category: category === 'human-restoration' ? 'Human' : category === 'building-decoration' ? 'Architecture' : 'Other',
           createdAt: serverTimestamp(),
         });
@@ -1593,13 +1960,17 @@ function UploadModal({
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-xl w-full bg-slate-900 rounded-[28px] overflow-hidden shadow-2xl border border-slate-800 flex flex-col max-h-[95vh]"
+        className={cn(
+          "w-full bg-slate-900 rounded-[28px] overflow-hidden shadow-2xl border border-slate-800 flex flex-col max-h-[95vh] transition-all duration-300",
+          step === 0 ? "max-w-4xl" : "max-w-xl"
+        )}
       >
         <div className="p-5 sm:p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 flex-shrink-0">
           <h2 className="text-xl sm:text-2xl font-black tracking-tighter">
             {step === 0 ? "Share Your Work" : 
              uploadType === 'transformation' ? "Transformation Details" : 
-             uploadType === 'single-image' ? "Photo + Prompt Details" :
+             uploadType === 'single-image' ? "Upload photo art" :
+             uploadType === 'prompt-library' ? "Prompt Library Submission" :
              "Prompt Details"}
           </h2>
           <button onClick={resetAndClose} className="p-2 hover:bg-slate-800 rounded-full transition-all text-slate-400">
@@ -1609,43 +1980,43 @@ function UploadModal({
         
         <div className="p-5 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto">
           {step === 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button 
                 onClick={() => { setUploadType('transformation'); setStep(1); }}
-                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-indigo-500 hover:bg-slate-900 transition-all group gap-3"
+                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-indigo-500 hover:bg-slate-900 transition-all group gap-4 text-center"
               >
-                <div className="w-12 h-12 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                  <ArrowRightLeft size={24} />
+                <div className="w-14 h-14 rounded-full bg-indigo-600/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                  <ArrowRightLeft size={28} />
                 </div>
-                <div className="text-center">
-                  <div className="text-[11px] font-bold text-white mb-1">Restoration</div>
-                  <div className="text-[8px] text-slate-500 font-medium leading-tight">Before + After</div>
+                <div>
+                  <div className="text-sm font-bold text-white mb-2">Restoration Transformation</div>
+                  <div className="text-xs text-slate-500 font-medium leading-tight">Combine Before + After Photos with AI Prompts</div>
                 </div>
               </button>
 
               <button 
                 onClick={() => { setUploadType('single-image'); setStep(1); }}
-                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-emerald-500 hover:bg-slate-900 transition-all group gap-3"
+                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-violet-500 hover:bg-slate-900 transition-all group gap-4 text-center"
               >
-                <div className="w-12 h-12 rounded-full bg-emerald-600/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                  <Layout size={24} />
+                <div className="w-14 h-14 rounded-full bg-violet-600/10 flex items-center justify-center text-violet-400 group-hover:bg-violet-600 group-hover:text-white transition-all">
+                  <PlusCircle size={28} />
                 </div>
-                <div className="text-center">
-                  <div className="text-[11px] font-bold text-white mb-1">Photo + Prompt</div>
-                  <div className="text-[8px] text-slate-500 font-medium leading-tight">Single Image</div>
+                <div>
+                  <div className="text-sm font-bold text-white mb-2">AI Gallery Art</div>
+                  <div className="text-xs text-slate-500 font-medium leading-tight">Upload Single AI Generated Art to Curated Gallery</div>
                 </div>
               </button>
 
               <button 
-                onClick={() => { setUploadType('prompt-only'); setStep(1); }}
-                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-amber-500 hover:bg-slate-900 transition-all group gap-3"
+                onClick={() => { setUploadType('prompt-library'); setStep(1); }}
+                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 rounded-2xl hover:border-emerald-500 hover:bg-slate-900 transition-all group gap-4 text-center"
               >
-                <div className="w-12 h-12 rounded-full bg-amber-600/10 flex items-center justify-center text-amber-400 group-hover:bg-amber-600 group-hover:text-white transition-all">
-                  <Sparkles size={24} />
+                <div className="w-14 h-14 rounded-full bg-emerald-600/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  <BookOpen size={28} />
                 </div>
-                <div className="text-center">
-                  <div className="text-[11px] font-bold text-white mb-1">Only Prompt</div>
-                  <div className="text-[8px] text-slate-500 font-medium leading-tight">Text Logic</div>
+                <div>
+                  <div className="text-sm font-bold text-white mb-2">Prompt Library</div>
+                  <div className="text-xs text-slate-500 font-medium leading-tight">Add Master Prompt (Optional Photo Companion)</div>
                 </div>
               </button>
             </div>
@@ -1710,7 +2081,35 @@ function UploadModal({
                 </div>
               )}
 
-              {uploadType === 'prompt-only' && (
+              {uploadType === 'prompt-library' && (
+                <div className="space-y-4">
+                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Optional Photo</label>
+                   <div 
+                      onClick={() => document.getElementById('optionalPhotoUpload')?.click()}
+                      className="w-full h-32 bg-slate-950 border border-slate-800 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:border-indigo-500/50 transition-all overflow-hidden"
+                    >
+                      {afterPreview ? (
+                        <div className="relative w-full h-full">
+                          <img src={afterPreview} className="w-full h-full object-cover" />
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setAfterPreview(''); }}
+                            className="absolute top-2 right-2 p-1 bg-red-500 rounded-md text-white hover:bg-red-600 transition-all"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                           <Camera size={24} className="text-slate-800" />
+                           <span className="text-[8px] font-bold uppercase text-slate-600">Click to add (Recommended)</span>
+                        </div>
+                      )}
+                    </div>
+                    <input id="optionalPhotoUpload" type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'after')} />
+                </div>
+              )}
+
+              {(uploadType === 'prompt-only' || uploadType === 'prompt-library') && (
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Prompt Title</label>
                   <input 
@@ -1723,40 +2122,17 @@ function UploadModal({
                 </div>
               )}
 
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Choose Category</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {categories.map(c => (
-                    <button 
-                      key={c.id}
-                      onClick={() => setCategory(c.slug)}
-                      className={cn(
-                        "py-3 px-6 rounded-xl border font-bold text-xs transition-all",
-                        category === c.slug 
-                          ? "border-indigo-600 bg-indigo-600/10 text-indigo-400" 
-                          : "border-slate-800 bg-slate-900 text-slate-500 hover:border-slate-700 hover:text-slate-300"
-                      )}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                  {categories.length === 0 && (
-                     <div className="col-span-2 p-4 text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-950 rounded-xl border border-dashed border-slate-800">
-                        Loading categories...
-                     </div>
-                  )}
-                </div>
-              </div>
+
 
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex justify-between">
-                  <span>{uploadType === 'transformation' ? "Master AI Prompt" : "The Master Prompt"}</span>
+                  <span>{uploadType === 'single-image' ? "Art Title name" : (uploadType === 'transformation' ? "Master AI Prompt" : "The Master Prompt")}</span>
                   <span className={cn(prompt.length > 500 ? "text-rose-500" : "text-slate-600")}>{prompt.length}/500</span>
                 </label>
                 <textarea 
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value.slice(0, 500))}
-                  placeholder="Paste the precise prompt..."
+                  placeholder={uploadType === 'single-image' ? "Enter the Art Title name..." : "Paste the precise prompt..."}
                   className="w-full h-32 p-4 bg-slate-950 rounded-2xl border border-slate-800 focus:border-indigo-600 outline-none transition-all text-xs font-medium resize-none text-slate-300"
                 />
               </div>
@@ -1775,10 +2151,10 @@ function UploadModal({
                     if (uploadType === 'transformation') setStep(2);
                     else handleUpload();
                   }}
-                  disabled={isUploading || !prompt || (uploadType === 'prompt-only' && !promptTitle)}
+                  disabled={isUploading || !prompt || ((uploadType === 'prompt-only' || uploadType === 'prompt-library') && !promptTitle)}
                   className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 text-xs"
                 >
-                  {uploadType === 'transformation' ? "Next Step" : (isUploading ? "Uploading..." : "Publish Prompt")}
+                  {uploadType === 'transformation' ? "Next Step" : (isUploading ? "Uploading..." : (uploadType === 'single-image' ? "Publish Art" : "Publish Prompt"))}
                 </button>
               </div>
             </div>
