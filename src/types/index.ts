@@ -55,6 +55,7 @@ export interface Photo {
   masterPrompt: string;
   createdAt: any; // Firestore Timestamp
   likesCount: number;
+  aiLink?: string;
 }
 
 export interface PromptLibraryItem {
@@ -64,4 +65,5 @@ export interface PromptLibraryItem {
   category: string;
   imageUrl?: string;
   createdAt: any;
+  aiLink?: string;
 }
