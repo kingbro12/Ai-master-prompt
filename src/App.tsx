@@ -540,6 +540,44 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
+  // Keep track of scroll positions continuously per active tab
+  const tabScrollPositions = useRef<Record<string, number>>({
+    gallery: 0,
+    prompts: 0,
+    'ai-gallery': 0,
+    admin: 0,
+  });
+
+  useEffect(() => {
+    const handleScroll = () => {
+      tabScrollPositions.current[activeTab] = window.scrollY;
+    };
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [activeTab]);
+
+  useEffect(() => {
+    // Reset header to visible upon tab change
+    setIsHeaderVisible(true);
+    
+    const savedPos = tabScrollPositions.current[activeTab] || 0;
+    
+    const restoreScroll = () => {
+      window.scrollTo(0, savedPos);
+    };
+    
+    // Attempt continuous restoration to support async DOM updates
+    restoreScroll();
+    const t = setTimeout(restoreScroll, 50);
+    const r = requestAnimationFrame(restoreScroll);
+    
+    return () => {
+      clearTimeout(t);
+      cancelAnimationFrame(r);
+    };
+  }, [activeTab]);
+
   // Auth Effect
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
