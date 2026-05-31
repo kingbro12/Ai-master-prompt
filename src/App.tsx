@@ -889,51 +889,62 @@ export default function App() {
           </button>
 
           <div className="flex items-center gap-2 sm:gap-4 ml-auto">
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-2.5">
               <button 
                 onClick={() => setActiveTab('gallery')}
                 className={cn(
-                  "px-4 py-2 rounded-full text-[10px] font-bold transition-all",
-                  activeTab === 'gallery' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
+                  "px-4.5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95",
+                  activeTab === 'gallery' 
+                    ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-500/20" 
+                    : "bg-slate-900 border-slate-800 text-slate-350 hover:text-white hover:bg-slate-850 hover:border-slate-700"
                 )}
               >
+                <ArrowRightLeft size={13} />
                 ReImagine
               </button>
               <button 
                 onClick={() => setActiveTab('prompts')}
                 className={cn(
-                  "px-4 py-2 rounded-full text-[10px] font-bold transition-all",
-                  activeTab === 'prompts' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
+                  "px-4.5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95",
+                  activeTab === 'prompts' 
+                    ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-500/20" 
+                    : "bg-slate-900 border-slate-800 text-slate-350 hover:text-white hover:bg-slate-850 hover:border-slate-700"
                 )}
               >
+                <Sparkles size={13} />
                 Prompt Hub
               </button>
               <button 
                 onClick={() => setActiveTab('ai-gallery')}
                 className={cn(
-                  "px-4 py-2 rounded-full text-[10px] font-bold transition-all",
-                  activeTab === 'ai-gallery' ? "bg-indigo-600/10 text-indigo-400" : "text-slate-500 hover:text-slate-300"
+                  "px-4.5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95",
+                  activeTab === 'ai-gallery' 
+                    ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-500/20" 
+                    : "bg-slate-900 border-slate-800 text-slate-350 hover:text-white hover:bg-slate-850 hover:border-slate-700"
                 )}
               >
+                <ImageIcon size={13} />
                 AI Gallery
               </button>
               {(isSystemAdmin || isAdminVerified) && (
                 <button 
                   onClick={() => setActiveTab('admin')}
                   className={cn(
-                    "px-4 py-2 rounded-full text-[10px] font-bold transition-all flex items-center gap-2",
-                    activeTab === 'admin' ? "bg-amber-500/10 text-amber-400" : "text-amber-500/60 hover:text-amber-400"
+                    "px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95",
+                    activeTab === 'admin' 
+                      ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20" 
+                      : "bg-slate-900 border-slate-800 text-amber-500 hover:text-amber-400 hover:bg-slate-850"
                   )}
                 >
-                  <Settings size={12} /> Admin
+                  <Settings size={11} /> Admin
                 </button>
               )}
               {!isAdminVerified && !isSystemAdmin && (
                 <button 
                   onClick={() => setShowPasswordModal(true)}
-                  className="px-4 py-2 rounded-full text-[10px] font-bold text-slate-500 hover:text-amber-400 transition-all flex items-center gap-2"
+                  className="px-3.5 py-1.5 rounded-full text-[11px] font-bold text-slate-400 hover:text-amber-400 border border-transparent hover:border-slate-800 hover:bg-slate-900 transition-all flex items-center gap-1.5"
                 >
-                  <Settings size={12} /> Admin Access
+                  <Settings size={11} /> Admin Access
                 </button>
               )}
             </div>
@@ -1152,7 +1163,7 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white max-w-4xl mx-auto mb-8 leading-tight px-4"
+            className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white max-w-4xl mx-auto mb-2 leading-tight px-4"
           >
             <span className="bg-gradient-to-r from-teal-400 via-emerald-400 to-green-400 bg-clip-text text-transparent">AI restoration</span>,{" "}
             <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-pink-500 bg-clip-text text-transparent">redesigns</span>,{" "}
@@ -1160,45 +1171,6 @@ export default function App() {
             <span className="bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-400 bg-clip-text text-transparent">inspiring AI galleries</span>{" "}
             <span className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-amber-400 bg-clip-text text-transparent font-extrabold tracking-wide drop-shadow-[0_4px_8px_rgba(244,63,94,0.5)]">— all in one place.</span>
           </motion.h1>
-          
-          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3 sm:gap-4 max-w-xl md:max-w-none mx-auto justify-center px-2">
-            <button 
-              onClick={() => setActiveTab('gallery')}
-              className={cn(
-                "px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3",
-                activeTab === 'gallery' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
-              )}
-            >
-              <ArrowRightLeft size={18} className="sm:w-5 sm:h-5" />
-              ReImagine
-            </button>
-            <button 
-              onClick={() => setActiveTab('prompts')}
-              className={cn(
-                "px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3",
-                activeTab === 'prompts' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
-              )}
-            >
-              <Sparkles size={18} className="sm:w-5 sm:h-5" />
-              Prompt Hub
-            </button>
-            <button 
-              onClick={() => setActiveTab('ai-gallery')}
-              className={cn(
-                "px-4 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3",
-                activeTab === 'ai-gallery' ? "bg-indigo-600 text-white shadow-indigo-600/20" : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
-              )}
-            >
-              <ImageIcon size={18} className="sm:w-5 sm:h-5" />
-              AI Gallery
-            </button>
-            <button 
-              disabled
-              className="px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl font-medium text-[10px] sm:text-xs transition-all bg-slate-950/20 text-slate-500 border border-slate-900/50 cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <span>( New feature coming soon )</span>
-            </button>
-          </div>
         </div>
 
         {/* Decorative ambient glow */}
